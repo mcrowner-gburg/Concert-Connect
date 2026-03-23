@@ -4,6 +4,7 @@ import { Ticket, Users, Calendar, Settings, ShieldAlert, LogOut, Disc3 } from "l
 import { motion } from "framer-motion";
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
+import { useListFriendRequests } from "@workspace/api-client-react";
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -12,18 +13,20 @@ function cn(...inputs: ClassValue[]) {
 export function Navbar() {
   const [location] = useLocation();
   const { user, logout } = useAuth();
+  const { data: requests } = useListFriendRequests();
+  const pendingCount = requests?.length ?? 0;
 
   if (!user) return null;
 
   const navItems = [
-    { href: "/shows", label: "Shows", icon: Ticket },
-    { href: "/calendar", label: "Calendar", icon: Calendar },
-    { href: "/friends", label: "Friends", icon: Users },
-    { href: "/profile", label: "Profile", icon: Settings },
+    { href: "/shows", label: "Shows", icon: Ticket, badge: 0 },
+    { href: "/calendar", label: "Calendar", icon: Calendar, badge: 0 },
+    { href: "/friends", label: "Friends", icon: Users, badge: pendingCount },
+    { href: "/profile", label: "Profile", icon: Settings, badge: 0 },
   ];
 
   if (user.isAdmin) {
-    navItems.push({ href: "/admin", label: "Admin", icon: ShieldAlert });
+    navItems.push({ href: "/admin", label: "Admin", icon: ShieldAlert, badge: 0 });
   }
 
   return (
@@ -53,7 +56,14 @@ export function Navbar() {
                     isActive ? "text-white" : "text-muted-foreground hover:text-foreground hover:bg-white/5"
                   )}
                 >
-                  <Icon className="w-4 h-4" />
+                  <span className="relative">
+                    <Icon className="w-4 h-4" />
+                    {item.badge > 0 && (
+                      <span className="absolute -top-1.5 -right-1.5 bg-primary text-white text-[9px] font-bold w-4 h-4 rounded-full flex items-center justify-center leading-none shadow-[0_0_8px_rgba(255,0,127,0.6)]">
+                        {item.badge > 9 ? "9+" : item.badge}
+                      </span>
+                    )}
+                  </span>
                   <span className="hidden md:block">{item.label}</span>
                   {isActive && (
                     <motion.div
