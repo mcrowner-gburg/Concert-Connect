@@ -1,15 +1,28 @@
 openapi: 3.1.0
 info:
-  # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: Live Music Tracker API
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: auth
+    description: Authentication
+  - name: users
+    description: User management
+  - name: venues
+    description: Music venue management
+  - name: shows
+    description: Live music shows
+  - name: attendance
+    description: Show attendance tracking
+  - name: friends
+    description: Social/friends features
+  - name: export
+    description: Data export
 paths:
   /healthz:
     get:
@@ -24,6 +37,485 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  /auth/me:
+    get:
+      operationId: getMe
+      tags: [auth]
+      summary: Get current user
+      responses:
+        "200":
+          description: Current user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "401":
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /auth/logout:
+    post:
+      operationId: logout
+      tags: [auth]
+      summary: Logout
+      responses:
+        "200":
+          description: Logged out
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+
+  /users/preferences:
+    get:
+      operationId: getUserPreferences
+      tags: [users]
+      summary: Get user location preferences
+      responses:
+        "200":
+          description: User preferences
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserPreferences"
+    put:
+      operationId: updateUserPreferences
+      tags: [users]
+      summary: Update user location preferences
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateUserPreferencesBody"
+      responses:
+        "200":
+          description: Updated preferences
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserPreferences"
+
+  /venues:
+    get:
+      operationId: listVenues
+      tags: [venues]
+      summary: List all venues
+      parameters:
+        - name: active
+          in: query
+          schema:
+            type: boolean
+      responses:
+        "200":
+          description: List of venues
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Venue"
+    post:
+      operationId: createVenue
+      tags: [venues]
+      summary: Create a new venue (admin only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateVenueBody"
+      responses:
+        "201":
+          description: Created venue
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Venue"
+
+  /venues/{id}:
+    get:
+      operationId: getVenue
+      tags: [venues]
+      summary: Get a venue by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Venue
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Venue"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    patch:
+      operationId: updateVenue
+      tags: [venues]
+      summary: Update a venue (admin only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateVenueBody"
+      responses:
+        "200":
+          description: Updated venue
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Venue"
+    delete:
+      operationId: deleteVenue
+      tags: [venues]
+      summary: Delete a venue (admin only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  /venues/{id}/scrape:
+    post:
+      operationId: scrapeVenue
+      tags: [venues]
+      summary: Trigger scraping for a venue (admin only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Scrape triggered
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ScrapeResult"
+
+  /venues/scrape-all:
+    post:
+      operationId: scrapeAllVenues
+      tags: [venues]
+      summary: Trigger scraping for all active venues (admin only)
+      responses:
+        "200":
+          description: Scrape results
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ScrapeAllResult"
+
+  /shows:
+    get:
+      operationId: listShows
+      tags: [shows]
+      summary: List shows filtered by user preferences or location
+      parameters:
+        - name: city
+          in: query
+          schema:
+            type: string
+        - name: zipCode
+          in: query
+          schema:
+            type: string
+        - name: startDate
+          in: query
+          schema:
+            type: string
+        - name: endDate
+          in: query
+          schema:
+            type: string
+        - name: venueId
+          in: query
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: List of shows
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ShowWithDetails"
+
+  /shows/{id}:
+    get:
+      operationId: getShow
+      tags: [shows]
+      summary: Get a show by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Show details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ShowWithDetails"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /shows/{id}/attend:
+    post:
+      operationId: markAttending
+      tags: [attendance]
+      summary: Mark the current user as attending a show
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AttendanceBody"
+      responses:
+        "200":
+          description: Attendance record
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Attendance"
+    delete:
+      operationId: removeAttendance
+      tags: [attendance]
+      summary: Remove attendance for the current user from a show
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Removed
+
+  /shows/{id}/attendees:
+    get:
+      operationId: getShowAttendees
+      tags: [attendance]
+      summary: Get list of users attending a show
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: List of attendees
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AttendeeInfo"
+
+  /friends:
+    get:
+      operationId: listFriends
+      tags: [friends]
+      summary: List friends of current user
+      responses:
+        "200":
+          description: Friends list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/FriendInfo"
+
+  /friends/requests:
+    get:
+      operationId: listFriendRequests
+      tags: [friends]
+      summary: List pending friend requests
+      responses:
+        "200":
+          description: Friend requests
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/FriendRequest"
+    post:
+      operationId: sendFriendRequest
+      tags: [friends]
+      summary: Send a friend request
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SendFriendRequestBody"
+      responses:
+        "201":
+          description: Friend request sent
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FriendRequest"
+
+  /friends/requests/{id}/accept:
+    post:
+      operationId: acceptFriendRequest
+      tags: [friends]
+      summary: Accept a friend request
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Accepted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+
+  /friends/requests/{id}/decline:
+    post:
+      operationId: declineFriendRequest
+      tags: [friends]
+      summary: Decline a friend request
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Declined
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+
+  /friends/{id}:
+    delete:
+      operationId: removeFriend
+      tags: [friends]
+      summary: Remove a friend
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Removed
+
+  /friends/activity:
+    get:
+      operationId: getFriendsActivity
+      tags: [friends]
+      summary: Get shows friends are attending
+      responses:
+        "200":
+          description: Friends activity feed
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/FriendActivity"
+
+  /users/search:
+    get:
+      operationId: searchUsers
+      tags: [users]
+      summary: Search users by username
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Matching users
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/UserSearchResult"
+
+  /export/shows:
+    get:
+      operationId: exportShows
+      tags: [export]
+      summary: Export shows as CSV
+      parameters:
+        - name: city
+          in: query
+          schema:
+            type: string
+        - name: zipCode
+          in: query
+          schema:
+            type: string
+        - name: startDate
+          in: query
+          schema:
+            type: string
+        - name: endDate
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: CSV file
+          content:
+            text/csv:
+              schema:
+                type: string
+
 components:
   schemas:
     HealthStatus:
@@ -34,3 +526,431 @@ components:
       required:
         - status
 
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+      required:
+        - error
+
+    SuccessResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+      required:
+        - success
+
+    User:
+      type: object
+      properties:
+        id:
+          type: integer
+        username:
+          type: string
+        displayName:
+          type: ["string", "null"]
+        profileImageUrl:
+          type: ["string", "null"]
+        isAdmin:
+          type: boolean
+        createdAt:
+          type: string
+      required:
+        - id
+        - username
+        - isAdmin
+        - createdAt
+
+    UserPreferences:
+      type: object
+      properties:
+        id:
+          type: integer
+        userId:
+          type: integer
+        cities:
+          type: array
+          items:
+            type: string
+        zipCodes:
+          type: array
+          items:
+            type: string
+        updatedAt:
+          type: string
+      required:
+        - id
+        - userId
+        - cities
+        - zipCodes
+        - updatedAt
+
+    UpdateUserPreferencesBody:
+      type: object
+      properties:
+        cities:
+          type: array
+          items:
+            type: string
+        zipCodes:
+          type: array
+          items:
+            type: string
+      required:
+        - cities
+        - zipCodes
+
+    Venue:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        city:
+          type: string
+        state:
+          type: ["string", "null"]
+        zipCode:
+          type: ["string", "null"]
+        websiteUrl:
+          type: string
+        scrapeUrl:
+          type: ["string", "null"]
+        isActive:
+          type: boolean
+        lastScrapedAt:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+      required:
+        - id
+        - name
+        - city
+        - websiteUrl
+        - isActive
+        - createdAt
+
+    CreateVenueBody:
+      type: object
+      properties:
+        name:
+          type: string
+        city:
+          type: string
+        state:
+          type: string
+        zipCode:
+          type: string
+        websiteUrl:
+          type: string
+        scrapeUrl:
+          type: string
+        isActive:
+          type: boolean
+      required:
+        - name
+        - city
+        - websiteUrl
+
+    UpdateVenueBody:
+      type: object
+      properties:
+        name:
+          type: string
+        city:
+          type: string
+        state:
+          type: string
+        zipCode:
+          type: string
+        websiteUrl:
+          type: string
+        scrapeUrl:
+          type: string
+        isActive:
+          type: boolean
+
+    Show:
+      type: object
+      properties:
+        id:
+          type: integer
+        venueId:
+          type: integer
+        title:
+          type: string
+        artist:
+          type: ["string", "null"]
+        description:
+          type: ["string", "null"]
+        showDate:
+          type: string
+        doorsTime:
+          type: ["string", "null"]
+        showTime:
+          type: ["string", "null"]
+        ticketUrl:
+          type: ["string", "null"]
+        ticketPrice:
+          type: ["string", "null"]
+        imageUrl:
+          type: ["string", "null"]
+        sourceUrl:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+      required:
+        - id
+        - venueId
+        - title
+        - showDate
+        - createdAt
+
+    ShowWithDetails:
+      type: object
+      properties:
+        id:
+          type: integer
+        venueId:
+          type: integer
+        title:
+          type: string
+        artist:
+          type: ["string", "null"]
+        description:
+          type: ["string", "null"]
+        showDate:
+          type: string
+        doorsTime:
+          type: ["string", "null"]
+        showTime:
+          type: ["string", "null"]
+        ticketUrl:
+          type: ["string", "null"]
+        ticketPrice:
+          type: ["string", "null"]
+        imageUrl:
+          type: ["string", "null"]
+        sourceUrl:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+        venue:
+          $ref: "#/components/schemas/Venue"
+        attendeeCount:
+          type: integer
+        currentUserAttending:
+          type: boolean
+        currentUserBoughtTickets:
+          type: boolean
+        friendsAttending:
+          type: array
+          items:
+            $ref: "#/components/schemas/AttendeeInfo"
+      required:
+        - id
+        - venueId
+        - title
+        - showDate
+        - createdAt
+        - venue
+        - attendeeCount
+        - currentUserAttending
+        - currentUserBoughtTickets
+        - friendsAttending
+
+    Attendance:
+      type: object
+      properties:
+        id:
+          type: integer
+        userId:
+          type: integer
+        showId:
+          type: integer
+        boughtTickets:
+          type: boolean
+        createdAt:
+          type: string
+      required:
+        - id
+        - userId
+        - showId
+        - boughtTickets
+        - createdAt
+
+    AttendanceBody:
+      type: object
+      properties:
+        boughtTickets:
+          type: boolean
+      required:
+        - boughtTickets
+
+    AttendeeInfo:
+      type: object
+      properties:
+        userId:
+          type: integer
+        username:
+          type: string
+        displayName:
+          type: ["string", "null"]
+        profileImageUrl:
+          type: ["string", "null"]
+        boughtTickets:
+          type: boolean
+      required:
+        - userId
+        - username
+        - boughtTickets
+
+    FriendInfo:
+      type: object
+      properties:
+        friendshipId:
+          type: integer
+        userId:
+          type: integer
+        username:
+          type: string
+        displayName:
+          type: ["string", "null"]
+        profileImageUrl:
+          type: ["string", "null"]
+        upcomingShowsCount:
+          type: integer
+      required:
+        - friendshipId
+        - userId
+        - username
+        - upcomingShowsCount
+
+    FriendRequest:
+      type: object
+      properties:
+        id:
+          type: integer
+        fromUserId:
+          type: integer
+        toUserId:
+          type: integer
+        fromUsername:
+          type: string
+        toUsername:
+          type: string
+        status:
+          type: string
+          enum: [pending, accepted, declined]
+        createdAt:
+          type: string
+      required:
+        - id
+        - fromUserId
+        - toUserId
+        - fromUsername
+        - toUsername
+        - status
+        - createdAt
+
+    SendFriendRequestBody:
+      type: object
+      properties:
+        toUserId:
+          type: integer
+      required:
+        - toUserId
+
+    FriendActivity:
+      type: object
+      properties:
+        showId:
+          type: integer
+        showTitle:
+          type: string
+        showDate:
+          type: string
+        venueName:
+          type: string
+        venueCity:
+          type: string
+        ticketUrl:
+          type: ["string", "null"]
+        friends:
+          type: array
+          items:
+            $ref: "#/components/schemas/AttendeeInfo"
+      required:
+        - showId
+        - showTitle
+        - showDate
+        - venueName
+        - venueCity
+        - friends
+
+    UserSearchResult:
+      type: object
+      properties:
+        id:
+          type: integer
+        username:
+          type: string
+        displayName:
+          type: ["string", "null"]
+        profileImageUrl:
+          type: ["string", "null"]
+        isFriend:
+          type: boolean
+        hasPendingRequest:
+          type: boolean
+      required:
+        - id
+        - username
+        - isFriend
+        - hasPendingRequest
+
+    ScrapeResult:
+      type: object
+      properties:
+        venueId:
+          type: integer
+        venueName:
+          type: string
+        showsFound:
+          type: integer
+        showsAdded:
+          type: integer
+        errors:
+          type: array
+          items:
+            type: string
+      required:
+        - venueId
+        - venueName
+        - showsFound
+        - showsAdded
+        - errors
+
+    ScrapeAllResult:
+      type: object
+      properties:
+        totalShowsFound:
+          type: integer
+        totalShowsAdded:
+          type: integer
+        venuesScraped:
+          type: integer
+        results:
+          type: array
+          items:
+            $ref: "#/components/schemas/ScrapeResult"
+      required:
+        - totalShowsFound
+        - totalShowsAdded
+        - venuesScraped
+        - results

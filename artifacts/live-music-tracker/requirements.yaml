@@ -1,0 +1,13 @@
+packages:
+  "framer-motion": "For fluid page transitions and interactive card hover effects"
+  "date-fns": "For formatting show dates and calendar management"
+  "lucide-react": "For sleek, consistent icons across the app"
+  "clsx": "Utility for conditional Tailwind class merging"
+  "tailwind-merge": "Utility for conflict-free Tailwind classes"
+images:
+  - path: "artifacts/live-music-tracker/public/images/hero-crowd.png"
+    description: "Dark, moody, high-contrast abstract silhouette of a concert crowd with intense neon hot pink and electric cyan stage lights cutting through thick fog, concert poster aesthetic"
+    aspect_ratio: "16:9"
+notes:
+  - "App uses Replit Auth via @workspace/replit-auth-web"
+  - "API hooks are imported directly from @workspace/api-client-react"
