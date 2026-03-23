@@ -39,14 +39,14 @@ export function Landing() {
           </div>
 
           <h2 className="font-display text-6xl sm:text-8xl lg:text-9xl leading-[0.9] tracking-tight text-white mb-6 drop-shadow-2xl">
-            NEVER MISS <br />
+            TRACK <br />
             <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary to-secondary">
-              A F*CKING SHOW
+              YOUR SHOWS
             </span>
           </h2>
           
           <p className="text-lg sm:text-xl text-muted-foreground font-medium mb-12 max-w-xl leading-relaxed">
-            Connect with friends, track upcoming live music in your city, and know exactly who has tickets. The ultimate setlist for your social life.
+            Connect with friends, track upcoming live music in your area, and know who is going to the show.
           </p>
 
           <motion.button
