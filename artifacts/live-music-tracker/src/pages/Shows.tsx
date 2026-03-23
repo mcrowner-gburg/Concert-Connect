@@ -1,13 +1,14 @@
 import { useState } from "react";
 import { useListShows } from "@workspace/api-client-react";
 import { ShowCard } from "@/components/ShowCard";
-import { Filter, Search, Loader2 } from "lucide-react";
+import { AddShowModal } from "@/components/AddShowModal";
+import { Filter, Search, Loader2, Plus } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
 export function Shows() {
   const [cityFilter, setCityFilter] = useState("");
+  const [showAddModal, setShowAddModal] = useState(false);
   
-  // Convert empty string to undefined for API call
   const { data: shows, isLoading, error } = useListShows({
     city: cityFilter || undefined
   });
@@ -15,23 +16,34 @@ export function Shows() {
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
       
+      <AddShowModal open={showAddModal} onClose={() => setShowAddModal(false)} />
+
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-12">
         <div>
           <h1 className="text-5xl font-display tracking-wide text-foreground mb-2">Upcoming <span className="text-secondary">Shows</span></h1>
           <p className="text-muted-foreground font-medium">Tracking the noise in your area based on your preferences.</p>
         </div>
 
-        <div className="flex items-center gap-3 bg-card border border-border/50 rounded-xl p-2 max-w-md w-full md:w-auto shadow-lg">
-          <Search className="w-5 h-5 text-muted-foreground ml-2" />
-          <input 
-            type="text" 
-            placeholder="Filter by city..." 
-            value={cityFilter}
-            onChange={(e) => setCityFilter(e.target.value)}
-            className="bg-transparent border-none outline-none text-foreground placeholder:text-muted-foreground w-full py-1 px-2 font-medium"
-          />
-          <button className="bg-white/5 hover:bg-white/10 p-2 rounded-lg transition-colors border border-white/5">
-            <Filter className="w-4 h-4 text-foreground" />
+        <div className="flex items-center gap-3 w-full md:w-auto">
+          <div className="flex items-center gap-3 bg-card border border-border/50 rounded-xl p-2 flex-1 md:max-w-sm shadow-lg">
+            <Search className="w-5 h-5 text-muted-foreground ml-2 shrink-0" />
+            <input 
+              type="text" 
+              placeholder="Filter by city..." 
+              value={cityFilter}
+              onChange={(e) => setCityFilter(e.target.value)}
+              className="bg-transparent border-none outline-none text-foreground placeholder:text-muted-foreground w-full py-1 px-2 font-medium"
+            />
+            <button className="bg-white/5 hover:bg-white/10 p-2 rounded-lg transition-colors border border-white/5 shrink-0">
+              <Filter className="w-4 h-4 text-foreground" />
+            </button>
+          </div>
+          <button
+            onClick={() => setShowAddModal(true)}
+            className="flex items-center gap-2 bg-primary hover:bg-primary/90 text-white px-5 py-3 rounded-xl font-bold text-sm transition-colors shadow-[0_0_20px_rgba(255,0,127,0.3)] hover:shadow-[0_0_30px_rgba(255,0,127,0.5)] shrink-0"
+          >
+            <Plus className="w-4 h-4" />
+            <span className="hidden sm:block">Add Show</span>
           </button>
         </div>
       </div>

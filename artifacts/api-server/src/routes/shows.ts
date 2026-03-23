@@ -1,6 +1,7 @@
 import { Router, type IRouter } from "express";
 import { eq, gte, lte, and, inArray, sql } from "drizzle-orm";
 import { db, showsTable, venuesTable, attendanceTable, userPreferencesTable, friendsTable, usersTable } from "@workspace/db";
+import { z } from "zod";
 import {
   ListShowsResponse,
   GetShowResponse,
@@ -239,6 +240,58 @@ router.delete("/shows/:id/attend", async (req, res): Promise<void> => {
     .where(and(eq(attendanceTable.userId, req.user.id), eq(attendanceTable.showId, params.data.id)));
 
   res.sendStatus(204);
+});
+
+const CreateShowBody = z.object({
+  title: z.string().min(1, "Title is required"),
+  artist: z.string().optional(),
+  venueId: z.number().int().positive("Please select a venue"),
+  showDate: z.string().min(1, "Date is required"),
+  showTime: z.string().optional(),
+  doorsTime: z.string().optional(),
+  description: z.string().optional(),
+  ticketUrl: z.string().optional(),
+  ticketPrice: z.string().optional(),
+  imageUrl: z.string().optional(),
+});
+
+router.post("/shows", async (req, res): Promise<void> => {
+  if (!req.isAuthenticated()) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
+
+  const parsed = CreateShowBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.message });
+    return;
+  }
+
+  const { venueId, showDate, ticketUrl, imageUrl, ...rest } = parsed.data;
+
+  const [venue] = await db.select().from(venuesTable).where(eq(venuesTable.id, venueId));
+  if (!venue) {
+    res.status(404).json({ error: "Venue not found" });
+    return;
+  }
+
+  const [show] = await db.insert(showsTable).values({
+    venueId,
+    showDate: new Date(showDate),
+    ticketUrl: ticketUrl || null,
+    imageUrl: imageUrl || null,
+    sourceUrl: null,
+    ...rest,
+  }).returning();
+
+  await db.insert(attendanceTable).values({
+    userId: req.user.id,
+    showId: show.id,
+    boughtTickets: false,
+  }).onConflictDoNothing();
+
+  const showWithDetails = await buildShowWithDetails(show, venue, req.user.id, []);
+  res.status(201).json(showWithDetails);
 });
 
 router.get("/shows/:id/attendees", async (req, res): Promise<void> => {
