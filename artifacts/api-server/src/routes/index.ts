@@ -6,6 +6,7 @@ import venuesRouter from "./venues";
 import showsRouter from "./shows";
 import friendsRouter from "./friends";
 import exportRouter from "./export";
+import ticketmasterRouter from "./ticketmaster";
 
 const router: IRouter = Router();
 
@@ -16,5 +17,6 @@ router.use(venuesRouter);
 router.use(showsRouter);
 router.use(friendsRouter);
 router.use(exportRouter);
+router.use(ticketmasterRouter);
 
 export default router;
