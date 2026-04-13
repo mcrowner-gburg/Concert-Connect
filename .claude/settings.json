@@ -1,0 +1,21 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ls ~/.ssh/*.pub)",
+      "Bash(git remote:*)",
+      "Bash(ssh -T git@github.com)",
+      "Bash(git add:*)",
+      "Bash(git push:*)",
+      "Bash(pnpm install:*)",
+      "Bash(npm install:*)",
+      "Bash(pnpm --version)",
+      "Bash(railway --version)",
+      "Bash(pnpm --filter @workspace/api-server add bcryptjs)",
+      "Bash(pnpm --filter @workspace/api-server add -D @types/bcryptjs)",
+      "Bash(pnpm --filter @workspace/api-server remove openid-client)"
+    ],
+    "additionalDirectories": [
+      "/Users/matt"
+    ]
+  }
+}
