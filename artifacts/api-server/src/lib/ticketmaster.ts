@@ -1,3 +1,6 @@
+import { and, sql, eq } from "drizzle-orm";
+import { db, venuesTable, showsTable } from "@workspace/db";
+
 export interface TMVenue {
   name: string;
   city: string;
@@ -21,6 +24,13 @@ export interface TMEvent {
   ticketPriceMax: number | null;
   imageUrl: string | null;
   description: string | null;
+}
+
+export interface SyncResult {
+  eventsFound: number;
+  showsAdded: number;
+  showsSkipped: number;
+  venuesCreated: number;
 }
 
 export async function fetchTicketmasterEvents(params: {
@@ -95,4 +105,102 @@ export async function fetchTicketmasterEvents(params: {
       description: null,
     };
   });
+}
+
+// In-memory cooldown: don't re-sync the same city/zip within 1 hour
+const recentSyncs = new Map<string, number>();
+const SYNC_COOLDOWN_MS = 60 * 60 * 1000;
+
+export async function syncTicketmasterToDb(params: { city?: string; postalCode?: string }): Promise<SyncResult> {
+  const key = `${params.city?.toLowerCase() ?? ""}:${params.postalCode ?? ""}`;
+  const lastSync = recentSyncs.get(key);
+  if (lastSync && Date.now() - lastSync < SYNC_COOLDOWN_MS) {
+    return { eventsFound: 0, showsAdded: 0, showsSkipped: 0, venuesCreated: 0 };
+  }
+
+  recentSyncs.set(key, Date.now());
+
+  let events: TMEvent[];
+  try {
+    events = await fetchTicketmasterEvents(params);
+  } catch {
+    return { eventsFound: 0, showsAdded: 0, showsSkipped: 0, venuesCreated: 0 };
+  }
+
+  let showsAdded = 0;
+  let showsSkipped = 0;
+  let venuesCreated = 0;
+
+  for (const event of events) {
+    if (!event.localDate || !event.venue.city) continue;
+
+    const [existingVenue] = await db
+      .select()
+      .from(venuesTable)
+      .where(
+        and(
+          sql`lower(${venuesTable.name}) = lower(${event.venue.name})`,
+          sql`lower(${venuesTable.city}) = lower(${event.venue.city})`
+        )
+      )
+      .limit(1);
+
+    let venueId: number;
+    if (existingVenue) {
+      venueId = existingVenue.id;
+    } else {
+      const [newVenue] = await db.insert(venuesTable).values({
+        name: event.venue.name,
+        city: event.venue.city,
+        state: event.venue.state ?? undefined,
+        zipCode: event.venue.postalCode ?? undefined,
+        websiteUrl: event.venue.url ?? "https://www.ticketmaster.com",
+        scrapeUrl: null,
+        isActive: false,
+      }).returning();
+      venueId = newVenue.id;
+      venuesCreated++;
+    }
+
+    const showDate = event.dateTime ?? new Date(`${event.localDate}T${event.localTime ?? "20:00:00"}`);
+
+    const [existingShow] = await db
+      .select({ id: showsTable.id })
+      .from(showsTable)
+      .where(
+        and(
+          eq(showsTable.venueId, venueId),
+          sql`lower(${showsTable.title}) = lower(${event.name})`,
+          sql`date(${showsTable.showDate}) = date(${showDate.toISOString()})`
+        )
+      )
+      .limit(1);
+
+    if (existingShow) {
+      showsSkipped++;
+      continue;
+    }
+
+    const priceStr = event.ticketPriceMin !== null
+      ? event.ticketPriceMax !== null && event.ticketPriceMax !== event.ticketPriceMin
+        ? `$${event.ticketPriceMin} – $${event.ticketPriceMax}`
+        : `$${event.ticketPriceMin}`
+      : null;
+
+    await db.insert(showsTable).values({
+      venueId,
+      title: event.name,
+      artist: event.artist ?? undefined,
+      showDate,
+      showTime: event.localTime ?? undefined,
+      ticketUrl: event.ticketUrl || undefined,
+      ticketPrice: priceStr ?? undefined,
+      imageUrl: event.imageUrl ?? undefined,
+      sourceUrl: `https://www.ticketmaster.com/event/${event.id}`,
+    });
+
+    showsAdded++;
+  }
+
+  return { eventsFound: events.length, showsAdded, showsSkipped, venuesCreated };
 }

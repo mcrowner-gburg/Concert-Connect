@@ -1,6 +1,7 @@
 import { Router, type IRouter } from "express";
 import { eq, gte, lte, and, inArray, sql } from "drizzle-orm";
 import { db, showsTable, venuesTable, attendanceTable, userPreferencesTable, friendsTable, usersTable } from "@workspace/db";
+import { syncTicketmasterToDb } from "../lib/ticketmaster";
 import { z } from "zod";
 import {
   ListShowsResponse,
@@ -100,6 +101,9 @@ router.get("/shows", async (req, res): Promise<void> => {
   let venueFilter: string[] | null = null;
 
   if (city || zipCode) {
+    // Auto-sync from Ticketmaster so any user can search any city/zip
+    await syncTicketmasterToDb({ city, postalCode: zipCode });
+
     const venueConditions = [];
     if (city) venueConditions.push(sql`lower(${venuesTable.city}) = lower(${city})`);
     if (zipCode) venueConditions.push(eq(venuesTable.zipCode, zipCode));
