@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, or, and } from "drizzle-orm";
+import { eq, or, and, inArray, gte } from "drizzle-orm";
 import { db, friendsTable, friendRequestsTable, usersTable, attendanceTable, showsTable, venuesTable } from "@workspace/db";
 import {
   ListFriendsResponse,
@@ -12,7 +12,6 @@ import {
   RemoveFriendParams,
   GetFriendsActivityResponse,
 } from "@workspace/api-zod";
-import { sql } from "drizzle-orm";
 
 const router: IRouter = Router();
 
@@ -29,15 +28,20 @@ router.get("/friends", async (req, res): Promise<void> => {
     return;
   }
 
+  const friendIds = myFriends.map(f => f.friendId);
+
   const friendUsers = await db.select().from(usersTable)
-    .where(sql`${usersTable.id} = ANY(${myFriends.map(f => f.friendId)}::text[])`);
+    .where(inArray(usersTable.id, friendIds));
 
   const now = new Date();
   const upcomingAttendance = await db
     .select({ userId: attendanceTable.userId })
     .from(attendanceTable)
     .innerJoin(showsTable, eq(attendanceTable.showId, showsTable.id))
-    .where(sql`${attendanceTable.userId} = ANY(${myFriends.map(f => f.friendId)}::text[]) AND ${showsTable.showDate} >= ${now}`);
+    .where(and(
+      inArray(attendanceTable.userId, friendIds),
+      gte(showsTable.showDate, now)
+    ));
 
   const upcomingCountByUser: Record<string, number> = {};
   for (const a of upcomingAttendance) {
@@ -76,7 +80,7 @@ router.get("/friends/requests", async (req, res): Promise<void> => {
 
   const userIds = [...new Set(requests.flatMap(r => [r.fromUserId, r.toUserId]))];
   const users = userIds.length > 0
-    ? await db.select().from(usersTable).where(sql`${usersTable.id} = ANY(${userIds}::text[])`)
+    ? await db.select().from(usersTable).where(inArray(usersTable.id, userIds))
     : [];
 
   const result = requests.map(r => {
@@ -245,13 +249,13 @@ router.get("/friends/activity", async (req, res): Promise<void> => {
     .innerJoin(showsTable, eq(attendanceTable.showId, showsTable.id))
     .innerJoin(venuesTable, eq(showsTable.venueId, venuesTable.id))
     .where(and(
-      sql`${attendanceTable.userId} = ANY(${friendIds}::text[])`,
-      sql`${showsTable.showDate} >= ${now}`
+      inArray(attendanceTable.userId, friendIds),
+      gte(showsTable.showDate, now)
     ))
     .orderBy(showsTable.showDate);
 
   const friendUsers = friendIds.length > 0
-    ? await db.select().from(usersTable).where(sql`${usersTable.id} = ANY(${friendIds}::text[])`)
+    ? await db.select().from(usersTable).where(inArray(usersTable.id, friendIds))
     : [];
 
   const showMap = new Map<number, { show: typeof showsTable.$inferSelect; venue: typeof venuesTable.$inferSelect; friends: Array<typeof attendanceTable.$inferSelect & { user: typeof usersTable.$inferSelect | undefined }> }>();
