@@ -104,6 +104,12 @@ router.post("/login", async (req: Request, res: Response) => {
     return;
   }
 
+  // Auto-promote to admin if this email matches the ADMIN_EMAIL env var
+  if (process.env.ADMIN_EMAIL && user.email === process.env.ADMIN_EMAIL && !user.isAdmin) {
+    await db.update(usersTable).set({ isAdmin: true }).where(eq(usersTable.id, user.id));
+    user.isAdmin = true;
+  }
+
   const sessionData: SessionData = {
     user: {
       id: user.id,
