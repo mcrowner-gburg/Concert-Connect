@@ -1,5 +1,5 @@
 [build]
-buildCommand = "pnpm --filter @workspace/api-server run build"
+buildCommand = "pnpm --filter @workspace/live-music-tracker run build && pnpm --filter @workspace/api-server run build"
 
 [deploy]
 startCommand = "node --enable-source-maps ./artifacts/api-server/dist/index.mjs"

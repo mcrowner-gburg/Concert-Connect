@@ -64,7 +64,7 @@ export function Landing() {
       </div>
 
       <div className="relative z-10 py-8 text-center text-muted-foreground text-sm font-semibold tracking-widest uppercase">
-        Built for the scene. Powered by Replit.
+        Built for the scene.
       </div>
     </div>
   );

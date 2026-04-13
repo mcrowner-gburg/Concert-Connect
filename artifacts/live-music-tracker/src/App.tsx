@@ -6,6 +6,8 @@ import { useAuth } from "@workspace/replit-auth-web";
 
 import { Navbar } from "./components/layout/Navbar";
 import { Landing } from "./pages/Landing";
+import { Login } from "./pages/Login";
+import { Register } from "./pages/Register";
 import { Shows } from "./pages/Shows";
 import { Friends } from "./pages/Friends";
 import { Profile } from "./pages/Profile";
@@ -45,6 +47,8 @@ function AppRouter() {
       <main className="flex-1 relative z-10">
         <Switch>
           <Route path="/" component={Landing} />
+          <Route path="/login" component={Login} />
+          <Route path="/register" component={Register} />
           <Route path="/shows">
             {() => <ProtectedRoute component={Shows} />}
           </Route>
