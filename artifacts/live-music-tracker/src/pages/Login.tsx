@@ -29,7 +29,7 @@ export function Login() {
         return;
       }
 
-      navigate("/shows");
+      window.location.href = "/shows";
     } catch {
       setError("Something went wrong. Please try again.");
     } finally {
