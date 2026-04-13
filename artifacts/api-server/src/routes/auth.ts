@@ -76,6 +76,7 @@ router.post("/register", async (req: Request, res: Response) => {
       lastName: user.lastName,
       profileImageUrl: user.profileImageUrl,
       isAdmin: user.isAdmin,
+      createdAt: user.createdAt.toISOString(),
     },
   };
 
@@ -119,6 +120,7 @@ router.post("/login", async (req: Request, res: Response) => {
       lastName: user.lastName,
       profileImageUrl: user.profileImageUrl,
       isAdmin: user.isAdmin,
+      createdAt: user.createdAt.toISOString(),
     },
   };
 

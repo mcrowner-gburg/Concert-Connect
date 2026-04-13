@@ -5,6 +5,8 @@ import {
   timestamp,
   boolean,
   integer,
+  uniqueIndex,
+  sql,
 } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
@@ -43,7 +45,9 @@ export const showsTable = pgTable("shows", {
   sourceUrl: text("source_url"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
-});
+}, (t) => [
+  uniqueIndex("shows_source_url_unique").on(t.sourceUrl).where(sql`source_url IS NOT NULL`),
+]);
 
 export const insertShowSchema = createInsertSchema(showsTable).omit({ id: true, createdAt: true, updatedAt: true });
 export type InsertShow = z.infer<typeof insertShowSchema>;

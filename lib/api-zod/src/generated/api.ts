@@ -192,6 +192,7 @@ export const ScrapeAllVenuesResponse = zod.object({
 export const ListShowsQueryParams = zod.object({
   city: zod.coerce.string().optional(),
   zipCode: zod.coerce.string().optional(),
+  radius: zod.coerce.number().min(1).max(200).optional(),
   startDate: zod.coerce.string().optional(),
   endDate: zod.coerce.string().optional(),
   venueId: zod.coerce.number().optional(),

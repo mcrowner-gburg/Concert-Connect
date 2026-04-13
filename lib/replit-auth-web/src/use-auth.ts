@@ -9,37 +9,36 @@ interface AuthState {
   isAuthenticated: boolean;
   login: () => void;
   logout: () => void;
+  refresh: () => void;
+}
+
+async function fetchUser(): Promise<AuthUser | null> {
+  try {
+    const res = await fetch("/api/auth/user", { credentials: "include" });
+    if (!res.ok) return null;
+    const data = await res.json() as { user: AuthUser | null };
+    return data.user ?? null;
+  } catch {
+    return null;
+  }
 }
 
 export function useAuth(): AuthState {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  useEffect(() => {
-    let cancelled = false;
-
-    fetch("/api/auth/user", { credentials: "include" })
-      .then((res) => {
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        return res.json() as Promise<{ user: AuthUser | null }>;
-      })
-      .then((data) => {
-        if (!cancelled) {
-          setUser(data.user ?? null);
-          setIsLoading(false);
-        }
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setUser(null);
-          setIsLoading(false);
-        }
-      });
-
-    return () => {
-      cancelled = true;
-    };
+  const load = useCallback(async () => {
+    const u = await fetchUser();
+    setUser(u);
+    setIsLoading(false);
   }, []);
+
+  useEffect(() => {
+    load();
+    // Listen for manual refresh events triggered after profile updates
+    window.addEventListener("auth-updated", load);
+    return () => window.removeEventListener("auth-updated", load);
+  }, [load]);
 
   const login = useCallback(() => {
     window.location.href = "/login";
@@ -51,11 +50,16 @@ export function useAuth(): AuthState {
     });
   }, []);
 
+  const refresh = useCallback(() => {
+    load();
+  }, [load]);
+
   return {
     user,
     isLoading,
     isAuthenticated: !!user,
     login,
     logout,
+    refresh,
   };
 }

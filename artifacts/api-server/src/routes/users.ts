@@ -9,6 +9,10 @@ import {
   SearchUsersQueryParams,
   SearchUsersResponse,
 } from "@workspace/api-zod";
+import { z } from "zod";
+import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+import crypto from "crypto";
 
 const router: IRouter = Router();
 
@@ -145,6 +149,105 @@ router.get("/users/search", async (req, res): Promise<void> => {
   }));
 
   res.json(SearchUsersResponse.parse(results));
+});
+
+const UpdateProfileBody = z.object({
+  firstName: z.string().min(1).optional(),
+  lastName: z.string().optional(),
+  username: z.string().min(2).optional(),
+  profileImageUrl: z.string().url().optional().nullable(),
+});
+
+router.patch("/users/profile", async (req, res): Promise<void> => {
+  if (!req.isAuthenticated()) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
+
+  const parsed = UpdateProfileBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.issues[0]?.message ?? "Invalid input" });
+    return;
+  }
+
+  const updates: Partial<typeof usersTable.$inferInsert> = {};
+  if (parsed.data.firstName !== undefined) updates.firstName = parsed.data.firstName;
+  if (parsed.data.lastName !== undefined) updates.lastName = parsed.data.lastName;
+  if (parsed.data.username !== undefined) updates.username = parsed.data.username;
+  if (parsed.data.profileImageUrl !== undefined) updates.profileImageUrl = parsed.data.profileImageUrl;
+
+  if (Object.keys(updates).length === 0) {
+    res.status(400).json({ error: "No fields to update" });
+    return;
+  }
+
+  const [updated] = await db.update(usersTable).set(updates).where(eq(usersTable.id, req.user.id)).returning();
+  if (!updated) {
+    res.status(404).json({ error: "User not found" });
+    return;
+  }
+
+  res.json({
+    id: 0,
+    username: updated.username ?? updated.email ?? updated.id,
+    displayName: updated.firstName ? `${updated.firstName} ${updated.lastName ?? ""}`.trim() : null,
+    profileImageUrl: updated.profileImageUrl,
+    isAdmin: updated.isAdmin,
+    createdAt: updated.createdAt.toISOString(),
+  });
+});
+
+function getR2Client() {
+  const accountId = process.env.CLOUDFLARE_ACCOUNT_ID;
+  const accessKeyId = process.env.R2_ACCESS_KEY_ID;
+  const secretAccessKey = process.env.R2_SECRET_ACCESS_KEY;
+  if (!accountId || !accessKeyId || !secretAccessKey) return null;
+  return new S3Client({
+    region: "auto",
+    endpoint: `https://${accountId}.r2.cloudflarestorage.com`,
+    credentials: { accessKeyId, secretAccessKey },
+  });
+}
+
+const UploadUrlBody = z.object({
+  contentType: z.string().regex(/^image\/(jpeg|png|webp|gif)$/, "Only image files are allowed"),
+  filename: z.string().max(255),
+});
+
+router.post("/users/upload-url", async (req, res): Promise<void> => {
+  if (!req.isAuthenticated()) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
+
+  const parsed = UploadUrlBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.issues[0]?.message ?? "Invalid input" });
+    return;
+  }
+
+  const s3 = getR2Client();
+  if (!s3) {
+    res.status(503).json({ error: "File uploads are not configured" });
+    return;
+  }
+
+  const bucket = process.env.R2_BUCKET_NAME ?? "concert-connect";
+  const ext = parsed.data.contentType.split("/")[1];
+  const key = `avatars/${req.user.id}/${crypto.randomBytes(8).toString("hex")}.${ext}`;
+
+  const command = new PutObjectCommand({
+    Bucket: bucket,
+    Key: key,
+    ContentType: parsed.data.contentType,
+  });
+
+  const uploadUrl = await getSignedUrl(s3, command, { expiresIn: 300 });
+  const publicUrl = process.env.R2_PUBLIC_URL
+    ? `${process.env.R2_PUBLIC_URL}/${key}`
+    : `https://${bucket}.${process.env.CLOUDFLARE_ACCOUNT_ID}.r2.cloudflarestorage.com/${key}`;
+
+  res.json({ uploadUrl, publicUrl });
 });
 
 export default router;

@@ -12,7 +12,11 @@
       "Bash(railway --version)",
       "Bash(pnpm --filter @workspace/api-server add bcryptjs)",
       "Bash(pnpm --filter @workspace/api-server add -D @types/bcryptjs)",
-      "Bash(pnpm --filter @workspace/api-server remove openid-client)"
+      "Bash(pnpm --filter @workspace/api-server remove openid-client)",
+      "Bash(pnpm --filter @workspace/api-server add @aws-sdk/client-s3 @aws-sdk/s3-request-presigner)",
+      "Bash(pnpm --filter @workspace/api-server exec tsc --noEmit)",
+      "Bash(pnpm --filter @workspace/api-server run build)",
+      "Bash(pnpm --filter @workspace/live-music-tracker run build)"
     ],
     "additionalDirectories": [
       "/Users/matt"

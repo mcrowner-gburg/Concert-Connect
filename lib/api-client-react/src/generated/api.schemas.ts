@@ -232,6 +232,7 @@ export type ListVenuesParams = {
 export type ListShowsParams = {
   city?: string;
   zipCode?: string;
+  radius?: number;
   startDate?: string;
   endDate?: string;
   venueId?: number;

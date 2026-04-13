@@ -36,12 +36,13 @@ export interface SyncResult {
 export async function fetchTicketmasterEvents(params: {
   city?: string;
   postalCode?: string;
+  radius?: number;
   size?: number;
 }): Promise<TMEvent[]> {
   const apiKey = process.env.TICKETMASTER_API_KEY;
   if (!apiKey) throw new Error("TICKETMASTER_API_KEY is not configured");
 
-  const { city, postalCode, size = 200 } = params;
+  const { city, postalCode, radius, size = 200 } = params;
   if (!city && !postalCode) throw new Error("city or postalCode is required");
 
   const now = new Date().toISOString().replace(/\.\d{3}Z$/, "Z");
@@ -57,6 +58,11 @@ export async function fetchTicketmasterEvents(params: {
 
   if (city) query.set("city", city);
   if (postalCode) query.set("postalCode", postalCode);
+  // radius only meaningful for zip code searches; Ticketmaster default is 50 miles
+  if (postalCode && radius) {
+    query.set("radius", String(radius));
+    query.set("unit", "miles");
+  }
 
   const url = `https://app.ticketmaster.com/discovery/v2/events.json?${query.toString()}`;
   const res = await fetch(url);
@@ -111,8 +117,8 @@ export async function fetchTicketmasterEvents(params: {
 const recentSyncs = new Map<string, number>();
 const SYNC_COOLDOWN_MS = 60 * 60 * 1000;
 
-export async function syncTicketmasterToDb(params: { city?: string; postalCode?: string }): Promise<SyncResult> {
-  const key = `${params.city?.toLowerCase() ?? ""}:${params.postalCode ?? ""}`;
+export async function syncTicketmasterToDb(params: { city?: string; postalCode?: string; radius?: number }): Promise<SyncResult> {
+  const key = `${params.city?.toLowerCase() ?? ""}:${params.postalCode ?? ""}:${params.radius ?? ""}`;
   const lastSync = recentSyncs.get(key);
   if (lastSync && Date.now() - lastSync < SYNC_COOLDOWN_MS) {
     return { eventsFound: 0, showsAdded: 0, showsSkipped: 0, venuesCreated: 0 };
@@ -122,7 +128,7 @@ export async function syncTicketmasterToDb(params: { city?: string; postalCode?:
 
   let events: TMEvent[];
   try {
-    events = await fetchTicketmasterEvents(params);
+    events = await fetchTicketmasterEvents({ city: params.city, postalCode: params.postalCode, radius: params.radius });
   } catch {
     return { eventsFound: 0, showsAdded: 0, showsSkipped: 0, venuesCreated: 0 };
   }
@@ -163,23 +169,7 @@ export async function syncTicketmasterToDb(params: { city?: string; postalCode?:
     }
 
     const showDate = event.dateTime ?? new Date(`${event.localDate}T${event.localTime ?? "20:00:00"}`);
-
-    const [existingShow] = await db
-      .select({ id: showsTable.id })
-      .from(showsTable)
-      .where(
-        and(
-          eq(showsTable.venueId, venueId),
-          sql`lower(${showsTable.title}) = lower(${event.name})`,
-          sql`date(${showsTable.showDate}) = date(${showDate.toISOString()})`
-        )
-      )
-      .limit(1);
-
-    if (existingShow) {
-      showsSkipped++;
-      continue;
-    }
+    const sourceUrl = `https://www.ticketmaster.com/event/${event.id}`;
 
     const priceStr = event.ticketPriceMin !== null
       ? event.ticketPriceMax !== null && event.ticketPriceMax !== event.ticketPriceMin
@@ -187,7 +177,7 @@ export async function syncTicketmasterToDb(params: { city?: string; postalCode?:
         : `$${event.ticketPriceMin}`
       : null;
 
-    await db.insert(showsTable).values({
+    const result = await db.insert(showsTable).values({
       venueId,
       title: event.name,
       artist: event.artist ?? undefined,
@@ -196,10 +186,14 @@ export async function syncTicketmasterToDb(params: { city?: string; postalCode?:
       ticketUrl: event.ticketUrl || undefined,
       ticketPrice: priceStr ?? undefined,
       imageUrl: event.imageUrl ?? undefined,
-      sourceUrl: `https://www.ticketmaster.com/event/${event.id}`,
-    });
+      sourceUrl,
+    }).onConflictDoNothing().returning({ id: showsTable.id });
 
-    showsAdded++;
+    if (result.length > 0) {
+      showsAdded++;
+    } else {
+      showsSkipped++;
+    }
   }
 
   return { eventsFound: events.length, showsAdded, showsSkipped, venuesCreated };

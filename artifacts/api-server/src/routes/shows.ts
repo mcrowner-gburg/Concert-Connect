@@ -91,7 +91,7 @@ router.get("/shows", async (req, res): Promise<void> => {
     return;
   }
 
-  const { city, zipCode, startDate, endDate, venueId } = params.data;
+  const { city, zipCode, radius, startDate, endDate, venueId } = params.data;
 
   let conditions = [];
   if (startDate) conditions.push(gte(showsTable.showDate, new Date(startDate)));
@@ -102,7 +102,7 @@ router.get("/shows", async (req, res): Promise<void> => {
 
   if (city || zipCode) {
     // Auto-sync from Ticketmaster so any user can search any city/zip
-    await syncTicketmasterToDb({ city, postalCode: zipCode });
+    await syncTicketmasterToDb({ city, postalCode: zipCode, radius });
 
     const venueConditions = [];
     if (city) venueConditions.push(sql`lower(${venuesTable.city}) = lower(${city})`);

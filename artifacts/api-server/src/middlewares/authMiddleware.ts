@@ -9,6 +9,7 @@ export interface AuthUser {
   lastName: string | null;
   profileImageUrl: string | null;
   isAdmin: boolean;
+  createdAt: string;
 }
 
 declare global {

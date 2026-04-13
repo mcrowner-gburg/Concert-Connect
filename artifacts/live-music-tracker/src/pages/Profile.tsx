@@ -1,8 +1,8 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useAuth } from "@workspace/replit-auth-web";
 import { useGetUserPreferences, useUpdateUserPreferences } from "@workspace/api-client-react";
-import { useQuery } from "@tanstack/react-query";
-import { Settings, MapPin, Hash, Save, Loader2, User, CheckCircle2, Users } from "lucide-react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { Settings, MapPin, Hash, Save, Loader2, User, CheckCircle2, Users, Camera, Pencil, X, Check } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { format, parseISO } from "date-fns";
 
@@ -34,9 +34,18 @@ export function Profile() {
   const { mutate: updatePrefs, isPending: savingPrefs } = useUpdateUserPreferences();
   const { data: history, isLoading: loadingHistory } = useShowHistory();
   const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [cities, setCities] = useState("");
   const [zipCodes, setZipCodes] = useState("");
+
+  // Profile editing state
+  const [editingProfile, setEditingProfile] = useState(false);
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
+  const [username, setUsername] = useState("");
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
 
   useEffect(() => {
     if (prefs) {
@@ -44,6 +53,14 @@ export function Profile() {
       setZipCodes(prefs.zipCodes.join(", "));
     }
   }, [prefs]);
+
+  useEffect(() => {
+    if (user && editingProfile) {
+      setFirstName(user.firstName ?? "");
+      setLastName(user.lastName ?? "");
+      setUsername(user.username ?? "");
+    }
+  }, [user, editingProfile]);
 
   const handleSave = () => {
     const cityArray = cities.split(",").map(s => s.trim()).filter(Boolean);
@@ -58,7 +75,99 @@ export function Profile() {
     );
   };
 
+  const updateProfile = useMutation({
+    mutationFn: async (data: { firstName?: string; lastName?: string; username?: string; profileImageUrl?: string | null }) => {
+      const res = await fetch("/api/users/profile", {
+        method: "PATCH",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error((err as any).error ?? "Failed to update profile");
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      toast({ title: "Profile Updated", description: "Your profile has been saved." });
+      setEditingProfile(false);
+      // Refresh auth user
+      queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
+      // Force re-fetch of auth user to update the header
+      fetch("/api/auth/user", { credentials: "include" })
+        .then(r => r.json())
+        .then(data => {
+          if (data.user) {
+            // Re-trigger auth context update by dispatching storage event
+            window.dispatchEvent(new Event("auth-updated"));
+          }
+        });
+    },
+    onError: (err: Error) => {
+      toast({ variant: "destructive", title: "Error", description: err.message });
+    },
+  });
+
+  const handleSaveProfile = () => {
+    updateProfile.mutate({
+      firstName: firstName || undefined,
+      lastName: lastName || undefined,
+      username: username || undefined,
+    });
+  };
+
+  const handleAvatarClick = () => fileInputRef.current?.click();
+
+  const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith("image/")) {
+      toast({ variant: "destructive", title: "Invalid file", description: "Please select an image file." });
+      return;
+    }
+
+    setUploadingAvatar(true);
+    try {
+      // Get presigned upload URL
+      const urlRes = await fetch("/api/users/upload-url", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ contentType: file.type, filename: file.name }),
+      });
+
+      if (!urlRes.ok) {
+        const err = await urlRes.json().catch(() => ({}));
+        throw new Error((err as any).error ?? "Could not get upload URL");
+      }
+
+      const { uploadUrl, publicUrl } = await urlRes.json();
+
+      // Upload directly to R2
+      const uploadRes = await fetch(uploadUrl, {
+        method: "PUT",
+        headers: { "Content-Type": file.type },
+        body: file,
+      });
+
+      if (!uploadRes.ok) throw new Error("Upload failed");
+
+      // Save the new URL to the user's profile
+      await updateProfile.mutateAsync({ profileImageUrl: publicUrl });
+      toast({ title: "Avatar Updated", description: "Your profile photo has been saved." });
+    } catch (err: any) {
+      toast({ variant: "destructive", title: "Upload failed", description: err.message });
+    } finally {
+      setUploadingAvatar(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
+
   if (!user) return null;
+
+  const memberSince = user.createdAt ? format(parseISO(user.createdAt), "MMM yyyy") : null;
 
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12 space-y-10">
@@ -71,20 +180,110 @@ export function Profile() {
         <div className="md:col-span-1">
           <div className="bg-card border border-border/50 rounded-2xl p-8 text-center shadow-lg relative overflow-hidden group">
             <div className="absolute inset-0 bg-gradient-to-b from-white/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-            <div className="w-32 h-32 mx-auto rounded-full bg-muted border-4 border-background shadow-xl mb-6 relative z-10 flex items-center justify-center overflow-hidden">
-              {user.profileImageUrl ? (
-                <img src={user.profileImageUrl} alt={user.username ?? ""} className="w-full h-full object-cover" />
-              ) : (
-                <User className="w-12 h-12 text-muted-foreground" />
-              )}
+
+            {/* Avatar with upload button */}
+            <div className="relative w-32 h-32 mx-auto mb-6">
+              <div className="w-32 h-32 rounded-full bg-muted border-4 border-background shadow-xl relative z-10 flex items-center justify-center overflow-hidden">
+                {user.profileImageUrl ? (
+                  <img src={user.profileImageUrl} alt={user.username ?? ""} className="w-full h-full object-cover" />
+                ) : (
+                  <User className="w-12 h-12 text-muted-foreground" />
+                )}
+                {uploadingAvatar && (
+                  <div className="absolute inset-0 bg-black/50 flex items-center justify-center rounded-full">
+                    <Loader2 className="w-6 h-6 text-white animate-spin" />
+                  </div>
+                )}
+              </div>
+              <button
+                onClick={handleAvatarClick}
+                disabled={uploadingAvatar}
+                className="absolute bottom-0 right-0 z-20 w-9 h-9 rounded-full bg-primary text-primary-foreground flex items-center justify-center shadow-lg hover:bg-primary/90 transition-colors disabled:opacity-50"
+                title="Change photo"
+              >
+                <Camera className="w-4 h-4" />
+              </button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/jpeg,image/png,image/webp,image/gif"
+                className="hidden"
+                onChange={handleAvatarChange}
+              />
             </div>
-            <h2 className="text-2xl font-bold text-foreground mb-1">@{user.username}</h2>
-            {user.isAdmin && (
-              <span className="inline-block bg-primary/20 text-primary border border-primary/30 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-widest mt-2">Admin</span>
+
+            {/* Name / username display or edit */}
+            {editingProfile ? (
+              <div className="space-y-2 text-left mb-4">
+                <div className="flex gap-2">
+                  <input
+                    value={firstName}
+                    onChange={e => setFirstName(e.target.value)}
+                    placeholder="First name"
+                    className="flex-1 bg-background border border-border rounded-lg px-3 py-1.5 text-sm text-foreground outline-none focus:border-primary"
+                  />
+                  <input
+                    value={lastName}
+                    onChange={e => setLastName(e.target.value)}
+                    placeholder="Last"
+                    className="flex-1 bg-background border border-border rounded-lg px-3 py-1.5 text-sm text-foreground outline-none focus:border-primary"
+                  />
+                </div>
+                <input
+                  value={username}
+                  onChange={e => setUsername(e.target.value)}
+                  placeholder="username"
+                  className="w-full bg-background border border-border rounded-lg px-3 py-1.5 text-sm text-foreground outline-none focus:border-primary"
+                />
+                <div className="flex gap-2 pt-1">
+                  <button
+                    onClick={handleSaveProfile}
+                    disabled={updateProfile.isPending}
+                    className="flex-1 flex items-center justify-center gap-1.5 bg-primary text-primary-foreground text-xs font-bold py-1.5 rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-50"
+                  >
+                    {updateProfile.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" />}
+                    Save
+                  </button>
+                  <button
+                    onClick={() => setEditingProfile(false)}
+                    className="flex-1 flex items-center justify-center gap-1.5 bg-muted text-muted-foreground text-xs font-bold py-1.5 rounded-lg hover:bg-muted/80 transition-colors"
+                  >
+                    <X className="w-3 h-3" /> Cancel
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="mb-4">
+                {(user.firstName || user.lastName) && (
+                  <div className="text-lg font-semibold text-foreground leading-tight">
+                    {[user.firstName, user.lastName].filter(Boolean).join(" ")}
+                  </div>
+                )}
+                <h2 className="text-xl font-bold text-muted-foreground">@{user.username}</h2>
+                <button
+                  onClick={() => setEditingProfile(true)}
+                  className="mt-2 inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  <Pencil className="w-3 h-3" /> Edit profile
+                </button>
+              </div>
             )}
-            <div className="mt-8 pt-6 border-t border-border/50 text-left">
-              <div className="text-sm text-muted-foreground font-medium mb-1">Shows Attended</div>
-              <div className="font-bold text-foreground text-2xl">{history?.length ?? 0}</div>
+
+            {user.isAdmin && (
+              <span className="inline-block bg-primary/20 text-primary border border-primary/30 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-widest">Admin</span>
+            )}
+
+            <div className="mt-6 pt-6 border-t border-border/50 text-left space-y-4">
+              <div>
+                <div className="text-sm text-muted-foreground font-medium mb-1">Shows Attended</div>
+                <div className="font-bold text-foreground text-2xl">{history?.length ?? 0}</div>
+              </div>
+              {memberSince && (
+                <div>
+                  <div className="text-sm text-muted-foreground font-medium mb-1">Member Since</div>
+                  <div className="font-semibold text-foreground">{memberSince}</div>
+                </div>
+              )}
             </div>
           </div>
         </div>
