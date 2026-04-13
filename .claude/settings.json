@@ -16,7 +16,8 @@
       "Bash(pnpm --filter @workspace/api-server add @aws-sdk/client-s3 @aws-sdk/s3-request-presigner)",
       "Bash(pnpm --filter @workspace/api-server exec tsc --noEmit)",
       "Bash(pnpm --filter @workspace/api-server run build)",
-      "Bash(pnpm --filter @workspace/live-music-tracker run build)"
+      "Bash(pnpm --filter @workspace/live-music-tracker run build)",
+      "Bash(pnpm --filter @workspace/api-server add multer @types/multer)"
     ],
     "additionalDirectories": [
       "/Users/matt"

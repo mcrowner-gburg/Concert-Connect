@@ -6,8 +6,8 @@ import {
   boolean,
   integer,
   uniqueIndex,
-  sql,
 } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { usersTable } from "./auth";

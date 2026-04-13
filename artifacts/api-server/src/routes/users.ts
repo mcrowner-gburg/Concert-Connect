@@ -11,8 +11,8 @@ import {
 } from "@workspace/api-zod";
 import { z } from "zod";
 import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
-import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import crypto from "crypto";
+import multer from "multer";
 
 const router: IRouter = Router();
 
@@ -209,20 +209,23 @@ function getR2Client() {
   });
 }
 
-const UploadUrlBody = z.object({
-  contentType: z.string().regex(/^image\/(jpeg|png|webp|gif)$/, "Only image files are allowed"),
-  filename: z.string().max(255),
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5 MB
+  fileFilter: (_req, file, cb) => {
+    if (file.mimetype.startsWith("image/")) cb(null, true);
+    else cb(new Error("Only image files are allowed"));
+  },
 });
 
-router.post("/users/upload-url", async (req, res): Promise<void> => {
+router.post("/users/avatar", upload.single("file"), async (req, res): Promise<void> => {
   if (!req.isAuthenticated()) {
     res.status(401).json({ error: "Unauthorized" });
     return;
   }
 
-  const parsed = UploadUrlBody.safeParse(req.body);
-  if (!parsed.success) {
-    res.status(400).json({ error: parsed.error.issues[0]?.message ?? "Invalid input" });
+  if (!req.file) {
+    res.status(400).json({ error: "No file provided" });
     return;
   }
 
@@ -233,21 +236,33 @@ router.post("/users/upload-url", async (req, res): Promise<void> => {
   }
 
   const bucket = process.env.R2_BUCKET_NAME ?? "concert-connect";
-  const ext = parsed.data.contentType.split("/")[1];
+  const ext = req.file.mimetype.split("/")[1] ?? "jpg";
   const key = `avatars/${req.user.id}/${crypto.randomBytes(8).toString("hex")}.${ext}`;
 
-  const command = new PutObjectCommand({
+  await s3.send(new PutObjectCommand({
     Bucket: bucket,
     Key: key,
-    ContentType: parsed.data.contentType,
-  });
+    Body: req.file.buffer,
+    ContentType: req.file.mimetype,
+  }));
 
-  const uploadUrl = await getSignedUrl(s3, command, { expiresIn: 300 });
   const publicUrl = process.env.R2_PUBLIC_URL
-    ? `${process.env.R2_PUBLIC_URL}/${key}`
-    : `https://${bucket}.${process.env.CLOUDFLARE_ACCOUNT_ID}.r2.cloudflarestorage.com/${key}`;
+    ? `${process.env.R2_PUBLIC_URL.replace(/\/$/, "")}/${key}`
+    : `https://pub-placeholder.r2.dev/${key}`;
 
-  res.json({ uploadUrl, publicUrl });
+  // Save to user profile
+  const [updated] = await db.update(usersTable)
+    .set({ profileImageUrl: publicUrl })
+    .where(eq(usersTable.id, req.user.id))
+    .returning();
+
+  res.json({ url: publicUrl, user: {
+    id: 0,
+    username: updated.username ?? updated.email ?? updated.id,
+    profileImageUrl: updated.profileImageUrl,
+    isAdmin: updated.isAdmin,
+    createdAt: updated.createdAt.toISOString(),
+  }});
 });
 
 export default router;

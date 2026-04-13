@@ -156,6 +156,32 @@ function or(...conditions: ReturnType<typeof eq>[]) {
   return sql`(${conditions.reduce((acc, c, i) => i === 0 ? c : sql`${acc} OR ${c}`)})`;
 }
 
+router.get("/shows/attending", async (req, res): Promise<void> => {
+  if (!req.isAuthenticated()) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
+
+  const now = new Date();
+
+  const upcoming = await db
+    .select({ show: showsTable, venue: venuesTable })
+    .from(attendanceTable)
+    .innerJoin(showsTable, eq(attendanceTable.showId, showsTable.id))
+    .innerJoin(venuesTable, eq(showsTable.venueId, venuesTable.id))
+    .where(and(eq(attendanceTable.userId, req.user.id), gte(showsTable.showDate, now)))
+    .orderBy(showsTable.showDate);
+
+  const myFriends = await db.select({ friendId: friendsTable.friendId }).from(friendsTable).where(eq(friendsTable.userId, req.user.id));
+  const friendIds = myFriends.map(f => f.friendId);
+
+  const showsWithDetails = await Promise.all(
+    upcoming.map(({ show, venue }) => buildShowWithDetails(show, venue, req.user.id, friendIds))
+  );
+
+  res.json(showsWithDetails);
+});
+
 router.get("/shows/history", async (req, res): Promise<void> => {
   if (!req.isAuthenticated()) {
     res.status(401).json({ error: "Unauthorized" });

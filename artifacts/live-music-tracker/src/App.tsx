@@ -9,6 +9,7 @@ import { Landing } from "./pages/Landing";
 import { Login } from "./pages/Login";
 import { Register } from "./pages/Register";
 import { Shows } from "./pages/Shows";
+import { MyShows } from "./pages/MyShows";
 import { Friends } from "./pages/Friends";
 import { Profile } from "./pages/Profile";
 import { Admin } from "./pages/Admin";
@@ -51,6 +52,9 @@ function AppRouter() {
           <Route path="/register" component={Register} />
           <Route path="/shows">
             {() => <ProtectedRoute component={Shows} />}
+          </Route>
+          <Route path="/my-shows">
+            {() => <ProtectedRoute component={MyShows} />}
           </Route>
           <Route path="/calendar">
             {() => <ProtectedRoute component={CalendarPage} />}

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useAuth } from "@workspace/replit-auth-web";
 import { useGetUserPreferences, useUpdateUserPreferences } from "@workspace/api-client-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -130,33 +130,22 @@ export function Profile() {
 
     setUploadingAvatar(true);
     try {
-      // Get presigned upload URL
-      const urlRes = await fetch("/api/users/upload-url", {
+      const formData = new FormData();
+      formData.append("file", file);
+
+      const res = await fetch("/api/users/avatar", {
         method: "POST",
         credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ contentType: file.type, filename: file.name }),
+        body: formData,
       });
 
-      if (!urlRes.ok) {
-        const err = await urlRes.json().catch(() => ({}));
-        throw new Error((err as any).error ?? "Could not get upload URL");
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error((err as any).error ?? "Upload failed");
       }
 
-      const { uploadUrl, publicUrl } = await urlRes.json();
-
-      // Upload directly to R2
-      const uploadRes = await fetch(uploadUrl, {
-        method: "PUT",
-        headers: { "Content-Type": file.type },
-        body: file,
-      });
-
-      if (!uploadRes.ok) throw new Error("Upload failed");
-
-      // Save the new URL to the user's profile
-      await updateProfile.mutateAsync({ profileImageUrl: publicUrl });
       toast({ title: "Avatar Updated", description: "Your profile photo has been saved." });
+      window.dispatchEvent(new Event("auth-updated"));
     } catch (err: any) {
       toast({ variant: "destructive", title: "Upload failed", description: err.message });
     } finally {
