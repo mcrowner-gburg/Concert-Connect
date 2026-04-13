@@ -10,6 +10,7 @@ import {
   SESSION_COOKIE,
   SESSION_TTL,
   ISSUER_URL,
+  OIDC_CLIENT_ID,
   type SessionData,
 } from "../lib/auth";
 import { z } from "zod";
@@ -60,12 +61,12 @@ function getSafeReturnTo(value: unknown): string {
 }
 
 async function upsertUser(claims: Record<string, unknown>) {
-  const replitUsername = (claims.username || claims.preferred_username || claims.sub) as string;
+  const username = (claims.username || claims.preferred_username || claims.sub) as string;
 
   const userData = {
     id: claims.sub as string,
     email: (claims.email as string) || null,
-    username: replitUsername,
+    username,
     firstName: (claims.first_name as string) || (claims.given_name as string) || null,
     lastName: (claims.last_name as string) || (claims.family_name as string) || null,
     profileImageUrl: (claims.profile_image_url || claims.picture) as string | null,
@@ -188,18 +189,21 @@ router.get("/callback", async (req: Request, res: Response) => {
 });
 
 router.get("/logout", async (req: Request, res: Response) => {
-  const config = await getOidcConfig();
   const origin = getOrigin(req);
-
   const sid = getSessionId(req);
   await clearSession(res, sid);
 
-  const endSessionUrl = oidc.buildEndSessionUrl(config, {
-    client_id: process.env.REPL_ID!,
-    post_logout_redirect_uri: origin,
-  });
-
-  res.redirect(endSessionUrl.href);
+  try {
+    const config = await getOidcConfig();
+    const endSessionUrl = oidc.buildEndSessionUrl(config, {
+      client_id: OIDC_CLIENT_ID,
+      post_logout_redirect_uri: origin,
+    });
+    res.redirect(endSessionUrl.href);
+  } catch {
+    // Provider doesn't support end_session_endpoint — just redirect home
+    res.redirect(origin);
+  }
 });
 
 router.post("/mobile-auth/token-exchange", async (req: Request, res: Response) => {

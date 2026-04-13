@@ -5,7 +5,15 @@ import { db, sessionsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import type { AuthUser } from "../middlewares/authMiddleware";
 
-export const ISSUER_URL = process.env.ISSUER_URL ?? "https://replit.com/oidc";
+if (!process.env.ISSUER_URL) {
+  throw new Error("ISSUER_URL environment variable is required (e.g. https://your-auth-provider.com/oidc)");
+}
+if (!process.env.OIDC_CLIENT_ID) {
+  throw new Error("OIDC_CLIENT_ID environment variable is required");
+}
+
+export const ISSUER_URL = process.env.ISSUER_URL;
+export const OIDC_CLIENT_ID = process.env.OIDC_CLIENT_ID;
 export const SESSION_COOKIE = "sid";
 export const SESSION_TTL = 7 * 24 * 60 * 60 * 1000;
 
@@ -20,7 +28,11 @@ let oidcConfig: client.Configuration | null = null;
 
 export async function getOidcConfig(): Promise<client.Configuration> {
   if (!oidcConfig) {
-    oidcConfig = await client.discovery(new URL(ISSUER_URL), process.env.REPL_ID!);
+    oidcConfig = await client.discovery(
+      new URL(ISSUER_URL),
+      OIDC_CLIENT_ID,
+      process.env.OIDC_CLIENT_SECRET,
+    );
   }
   return oidcConfig;
 }
