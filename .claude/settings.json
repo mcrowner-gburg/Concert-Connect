@@ -17,7 +17,16 @@
       "Bash(pnpm --filter @workspace/api-server exec tsc --noEmit)",
       "Bash(pnpm --filter @workspace/api-server run build)",
       "Bash(pnpm --filter @workspace/live-music-tracker run build)",
-      "Bash(pnpm --filter @workspace/api-server add multer @types/multer)"
+      "Bash(pnpm --filter @workspace/api-server add multer @types/multer)",
+      "Bash(DATABASE_URL=\"postgresql://neondb_owner:npg_V4lUgF5GsBjy@ep-restless-dream-amkpmley-pooler.c-5.us-east-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require\" node --input-type=module)",
+      "Bash(pnpm --filter @workspace/scripts add bcryptjs @types/bcryptjs @workspace/db)",
+      "Bash(pnpm --filter @workspace/scripts add bcryptjs @types/bcryptjs)",
+      "Bash(DATABASE_URL=\"postgresql://neondb_owner:npg_V4lUgF5GsBjy@ep-restless-dream-amkpmley-pooler.c-5.us-east-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require\" ADMIN_EMAIL=\"placeholder@example.com\" pnpm --filter @workspace/scripts exec tsx ../scripts/seed-test-users.ts)",
+      "Bash(pnpm --filter @workspace/scripts add drizzle-orm @neondatabase/serverless)",
+      "Bash(DATABASE_URL=\"postgresql://neondb_owner:npg_V4lUgF5GsBjy@ep-restless-dream-amkpmley-pooler.c-5.us-east-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require\" ADMIN_EMAIL=\"mcrowner@barkingcatmediagroup.com\" pnpm --filter @workspace/scripts exec tsx ../scripts/seed-test-users.ts)",
+      "Bash(pnpm --filter @workspace/scripts exec tsx -e ':*)",
+      "Bash(DATABASE_URL=\"postgresql://neondb_owner:npg_V4lUgF5GsBjy@ep-restless-dream-amkpmley-pooler.c-5.us-east-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require\" pnpm --filter @workspace/scripts exec tsx ../scripts/list-users.ts)",
+      "Bash(DATABASE_URL=\"postgresql://neondb_owner:npg_V4lUgF5GsBjy@ep-restless-dream-amkpmley-pooler.c-5.us-east-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require\" ADMIN_EMAIL=\"matt@thecrowners.com\" pnpm --filter @workspace/scripts exec tsx ../scripts/seed-test-users.ts)"
     ],
     "additionalDirectories": [
       "/Users/matt"

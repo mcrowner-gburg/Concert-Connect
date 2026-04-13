@@ -7,6 +7,7 @@ import showsRouter from "./shows";
 import friendsRouter from "./friends";
 import exportRouter from "./export";
 import ticketmasterRouter from "./ticketmaster";
+import adminRouter from "./admin";
 
 const router: IRouter = Router();
 
@@ -18,5 +19,6 @@ router.use(showsRouter);
 router.use(friendsRouter);
 router.use(exportRouter);
 router.use(ticketmasterRouter);
+router.use(adminRouter);
 
 export default router;
