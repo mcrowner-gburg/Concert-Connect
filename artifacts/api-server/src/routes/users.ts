@@ -136,23 +136,15 @@ router.get("/users/search", async (req, res): Promise<void> => {
   );
 
   const results = users.map(u => ({
-    id: 0,
+    id: u.id,
     username: u.username ?? u.email ?? u.id,
     displayName: u.firstName ? `${u.firstName} ${u.lastName ?? ""}`.trim() : null,
     profileImageUrl: u.profileImageUrl,
     isFriend: friendIds.has(u.id),
     hasPendingRequest: pendingIds.has(u.id) && !friendIds.has(u.id),
-    _userId: u.id,
   }));
 
-  res.json(SearchUsersResponse.parse(results.map(r => ({
-    id: r.id,
-    username: r.username,
-    displayName: r.displayName,
-    profileImageUrl: r.profileImageUrl,
-    isFriend: r.isFriend,
-    hasPendingRequest: r.hasPendingRequest,
-  }))));
+  res.json(SearchUsersResponse.parse(results));
 });
 
 export default router;

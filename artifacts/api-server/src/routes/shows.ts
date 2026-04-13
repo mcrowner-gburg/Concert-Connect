@@ -156,6 +156,58 @@ function or(...conditions: ReturnType<typeof eq>[]) {
   return sql`(${conditions.reduce((acc, c, i) => i === 0 ? c : sql`${acc} OR ${c}`)})`;
 }
 
+router.get("/shows/history", async (req, res): Promise<void> => {
+  if (!req.isAuthenticated()) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
+
+  const now = new Date();
+
+  const attended = await db
+    .select({ show: showsTable, venue: venuesTable })
+    .from(attendanceTable)
+    .innerJoin(showsTable, eq(attendanceTable.showId, showsTable.id))
+    .innerJoin(venuesTable, eq(showsTable.venueId, venuesTable.id))
+    .where(and(eq(attendanceTable.userId, req.user.id), lte(showsTable.showDate, now)))
+    .orderBy(showsTable.showDate);
+
+  const myFriends = await db.select({ friendId: friendsTable.friendId }).from(friendsTable).where(eq(friendsTable.userId, req.user.id));
+  const friendIds = myFriends.map(f => f.friendId);
+
+  const history = await Promise.all(attended.map(async ({ show, venue }) => {
+    let friendsWhoAttended: Array<{ username: string; profileImageUrl: string | null }> = [];
+
+    if (friendIds.length > 0) {
+      const friendAttendees = await db
+        .select({ userId: attendanceTable.userId })
+        .from(attendanceTable)
+        .where(and(eq(attendanceTable.showId, show.id), inArray(attendanceTable.userId, friendIds)));
+
+      if (friendAttendees.length > 0) {
+        const friendUsers = await db.select().from(usersTable).where(inArray(usersTable.id, friendAttendees.map(a => a.userId)));
+        friendsWhoAttended = friendAttendees.map(fa => {
+          const u = friendUsers.find(u => u.id === fa.userId);
+          return { username: u?.username ?? u?.email ?? fa.userId, profileImageUrl: u?.profileImageUrl ?? null };
+        });
+      }
+    }
+
+    return {
+      id: show.id,
+      title: show.title,
+      artist: show.artist,
+      showDate: show.showDate.toISOString(),
+      venueName: venue.name,
+      venueCity: venue.city,
+      ticketUrl: show.ticketUrl,
+      friendsWhoAttended,
+    };
+  }));
+
+  res.json(history.reverse()); // most recent first
+});
+
 router.get("/shows/:id", async (req, res): Promise<void> => {
   const params = GetShowParams.safeParse(req.params);
   if (!params.success) {

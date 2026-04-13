@@ -108,7 +108,7 @@ router.post("/friends/requests", async (req, res): Promise<void> => {
     return;
   }
 
-  const toUser = await db.select().from(usersTable).where(eq(usersTable.id, String(parsed.data.toUserId))).limit(1);
+  const toUser = await db.select().from(usersTable).where(eq(usersTable.id, parsed.data.toUserId)).limit(1);
   if (toUser.length === 0) {
     res.status(404).json({ error: "User not found" });
     return;

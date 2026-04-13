@@ -360,7 +360,7 @@ export const ListFriendRequestsResponse = zod.array(
  * @summary Send a friend request
  */
 export const SendFriendRequestBody = zod.object({
-  toUserId: zod.number(),
+  toUserId: zod.string(),
 });
 
 /**
@@ -426,7 +426,7 @@ export const SearchUsersQueryParams = zod.object({
 });
 
 export const SearchUsersResponseItem = zod.object({
-  id: zod.number(),
+  id: zod.string(),
   username: zod.string(),
   displayName: zod.string().nullish(),
   profileImageUrl: zod.string().nullish(),

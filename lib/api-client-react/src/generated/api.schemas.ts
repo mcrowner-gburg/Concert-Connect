@@ -185,7 +185,7 @@ export interface FriendRequest {
 }
 
 export interface SendFriendRequestBody {
-  toUserId: number;
+  toUserId: string;
 }
 
 export interface FriendActivity {
@@ -200,7 +200,7 @@ export interface FriendActivity {
 }
 
 export interface UserSearchResult {
-  id: number;
+  id: string;
   username: string;
   /** @nullable */
   displayName?: string | null;
