@@ -8,6 +8,8 @@ import { Navbar } from "./components/layout/Navbar";
 import { Landing } from "./pages/Landing";
 import { Login } from "./pages/Login";
 import { Register } from "./pages/Register";
+import { ForgotPassword } from "./pages/ForgotPassword";
+import { ResetPassword } from "./pages/ResetPassword";
 import { Shows } from "./pages/Shows";
 import { MyShows } from "./pages/MyShows";
 import { Friends } from "./pages/Friends";
@@ -50,6 +52,8 @@ function AppRouter() {
           <Route path="/" component={Landing} />
           <Route path="/login" component={Login} />
           <Route path="/register" component={Register} />
+          <Route path="/forgot-password" component={ForgotPassword} />
+          <Route path="/reset-password" component={ResetPassword} />
           <Route path="/shows">
             {() => <ProtectedRoute component={Shows} />}
           </Route>
