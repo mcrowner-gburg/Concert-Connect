@@ -120,15 +120,19 @@ router.post("/friends/requests", async (req, res): Promise<void> => {
 
   const toUserId = toUser[0].id;
 
-  const [existing] = await db.select().from(friendRequestsTable)
+  const existingRequests = await db.select().from(friendRequestsTable)
     .where(or(
       and(eq(friendRequestsTable.fromUserId, req.user.id), eq(friendRequestsTable.toUserId, toUserId)),
       and(eq(friendRequestsTable.fromUserId, toUserId), eq(friendRequestsTable.toUserId, req.user.id))
     ));
 
-  if (existing) {
-    res.status(400).json({ error: "Friend request already exists" });
-    return;
+  for (const r of existingRequests) {
+    if (r.status === "pending") {
+      res.status(400).json({ error: "Friend request already exists" });
+      return;
+    }
+    // Clean up declined/accepted stale records so a fresh request can be sent
+    await db.delete(friendRequestsTable).where(eq(friendRequestsTable.id, r.id));
   }
 
   const [request] = await db.insert(friendRequestsTable).values({
