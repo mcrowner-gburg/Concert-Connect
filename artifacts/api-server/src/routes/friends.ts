@@ -69,12 +69,10 @@ router.get("/friends/requests", async (req, res): Promise<void> => {
     return;
   }
 
+  // Only show INCOMING requests — outgoing ones shouldn't appear in the banner
   const requests = await db.select().from(friendRequestsTable)
     .where(and(
-      or(
-        eq(friendRequestsTable.fromUserId, req.user.id),
-        eq(friendRequestsTable.toUserId, req.user.id)
-      ),
+      eq(friendRequestsTable.toUserId, req.user.id),
       eq(friendRequestsTable.status, "pending")
     ));
 
@@ -119,6 +117,11 @@ router.post("/friends/requests", async (req, res): Promise<void> => {
   }
 
   const toUserId = toUser[0].id;
+
+  if (toUserId === req.user.id) {
+    res.status(400).json({ error: "You can't send a friend request to yourself" });
+    return;
+  }
 
   const existingRequests = await db.select().from(friendRequestsTable)
     .where(or(
