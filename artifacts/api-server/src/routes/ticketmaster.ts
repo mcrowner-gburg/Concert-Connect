@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { z } from "zod";
-import { fetchTicketmasterEvents, syncTicketmasterToDb } from "../lib/ticketmaster";
+import { fetchTicketmasterEvents, syncTicketmasterToDb, recentSyncs } from "../lib/ticketmaster";
 
 const router: IRouter = Router();
 
@@ -22,7 +22,9 @@ router.post("/ticketmaster/sync", async (req, res): Promise<void> => {
     return;
   }
 
-  const result = await syncTicketmasterToDb(parsed.data);
+  // Admin manual syncs bypass cooldown and fetch more pages for thorough coverage
+  recentSyncs.delete(`${parsed.data.city?.toLowerCase() ?? ""}:${parsed.data.postalCode ?? ""}:${parsed.data.radius ?? ""}`);
+  const result = await syncTicketmasterToDb({ ...parsed.data, maxPages: 5 });
   res.json(result);
 });
 

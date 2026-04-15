@@ -33,91 +33,101 @@ export interface SyncResult {
   venuesCreated: number;
 }
 
+function parseTMEvent(e: any): TMEvent {
+  const tmVenue = e._embedded?.venues?.[0];
+  const attraction = e._embedded?.attractions?.[0];
+  const price = e.priceRanges?.[0];
+  const localDate: string = e.dates?.start?.localDate ?? "";
+  const localTime: string | null = e.dates?.start?.localTime ?? null;
+  const dateTimeStr: string | null = e.dates?.start?.dateTime ?? null;
+  const bestImage = (e.images ?? [])
+    .filter((img: any) => img.ratio === "16_9")
+    .sort((a: any, b: any) => (b.width ?? 0) - (a.width ?? 0))[0];
+  return {
+    id: e.id,
+    name: e.name ?? "Untitled Event",
+    artist: attraction?.name ?? null,
+    dateTime: dateTimeStr ? new Date(dateTimeStr) : null,
+    localDate,
+    localTime: localTime ? localTime.slice(0, 5) : null,
+    venue: {
+      name: tmVenue?.name ?? "Unknown Venue",
+      city: tmVenue?.city?.name ?? "",
+      state: tmVenue?.state?.stateCode ?? null,
+      postalCode: tmVenue?.postalCode ?? null,
+      url: tmVenue?.url ?? null,
+      latitude: tmVenue?.location?.latitude ?? null,
+      longitude: tmVenue?.location?.longitude ?? null,
+    },
+    ticketUrl: e.url ?? "",
+    ticketPriceMin: price?.min ?? null,
+    ticketPriceMax: price?.max ?? null,
+    imageUrl: bestImage?.url ?? null,
+    description: null,
+  };
+}
+
 export async function fetchTicketmasterEvents(params: {
   city?: string;
   postalCode?: string;
   radius?: number;
   size?: number;
+  maxPages?: number;
 }): Promise<TMEvent[]> {
   const apiKey = process.env.TICKETMASTER_API_KEY;
   if (!apiKey) throw new Error("TICKETMASTER_API_KEY is not configured");
 
-  const { city, postalCode, radius, size = 200 } = params;
+  const { city, postalCode, radius, size = 200, maxPages = 1 } = params;
   if (!city && !postalCode) throw new Error("city or postalCode is required");
 
-  const now = new Date().toISOString().replace(/\.\d{3}Z$/, "Z");
+  const allEvents: TMEvent[] = [];
 
-  const query = new URLSearchParams({
-    apikey: apiKey,
-    classificationName: "Music",
-    size: String(size),
-    sort: "date,asc",
-    startDateTime: now,
-    countryCode: "US",
-  });
+  for (let page = 0; page < maxPages; page++) {
+    const now = new Date().toISOString().replace(/\.\d{3}Z$/, "Z");
+    const query = new URLSearchParams({
+      apikey: apiKey,
+      classificationName: "Music",
+      size: String(size),
+      sort: "date,asc",
+      startDateTime: now,
+      countryCode: "US",
+      page: String(page),
+    });
 
-  if (city) query.set("city", city);
-  if (postalCode) query.set("postalCode", postalCode);
-  // radius only meaningful for zip code searches; Ticketmaster default is 50 miles
-  if (postalCode && radius) {
-    query.set("radius", String(radius));
-    query.set("unit", "miles");
+    if (city) query.set("city", city);
+    if (postalCode) query.set("postalCode", postalCode);
+    // radius only meaningful for zip code searches; Ticketmaster default is 50 miles
+    if (postalCode && radius) {
+      query.set("radius", String(radius));
+      query.set("unit", "miles");
+    }
+
+    const url = `https://app.ticketmaster.com/discovery/v2/events.json?${query.toString()}`;
+    const res = await fetch(url);
+
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(`Ticketmaster API error ${res.status}: ${text}`);
+    }
+
+    const data = await res.json();
+    const events: any[] = data?._embedded?.events ?? [];
+    const totalPages: number = data?.page?.totalPages ?? 1;
+
+    allEvents.push(...events.map(parseTMEvent));
+
+    // Stop early if we've reached the last page or got no results
+    if (events.length === 0 || page >= totalPages - 1) break;
   }
 
-  const url = `https://app.ticketmaster.com/discovery/v2/events.json?${query.toString()}`;
-  const res = await fetch(url);
-
-  if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`Ticketmaster API error ${res.status}: ${text}`);
-  }
-
-  const data = await res.json();
-  const events: any[] = data?._embedded?.events ?? [];
-
-  return events.map((e: any): TMEvent => {
-    const tmVenue = e._embedded?.venues?.[0];
-    const attraction = e._embedded?.attractions?.[0];
-    const price = e.priceRanges?.[0];
-
-    const localDate: string = e.dates?.start?.localDate ?? "";
-    const localTime: string | null = e.dates?.start?.localTime ?? null;
-    const dateTimeStr: string | null = e.dates?.start?.dateTime ?? null;
-
-    const bestImage = (e.images ?? [])
-      .filter((img: any) => img.ratio === "16_9")
-      .sort((a: any, b: any) => (b.width ?? 0) - (a.width ?? 0))[0];
-
-    return {
-      id: e.id,
-      name: e.name ?? "Untitled Event",
-      artist: attraction?.name ?? null,
-      dateTime: dateTimeStr ? new Date(dateTimeStr) : null,
-      localDate,
-      localTime: localTime ? localTime.slice(0, 5) : null,
-      venue: {
-        name: tmVenue?.name ?? "Unknown Venue",
-        city: tmVenue?.city?.name ?? "",
-        state: tmVenue?.state?.stateCode ?? null,
-        postalCode: tmVenue?.postalCode ?? null,
-        url: tmVenue?.url ?? null,
-        latitude: tmVenue?.location?.latitude ?? null,
-        longitude: tmVenue?.location?.longitude ?? null,
-      },
-      ticketUrl: e.url ?? "",
-      ticketPriceMin: price?.min ?? null,
-      ticketPriceMax: price?.max ?? null,
-      imageUrl: bestImage?.url ?? null,
-      description: null,
-    };
-  });
+  return allEvents;
 }
 
 // In-memory cooldown: don't re-sync the same city/zip within 1 hour
-const recentSyncs = new Map<string, number>();
+export const recentSyncs = new Map<string, number>();
 const SYNC_COOLDOWN_MS = 60 * 60 * 1000;
 
-export async function syncTicketmasterToDb(params: { city?: string; postalCode?: string; radius?: number }): Promise<SyncResult> {
+export async function syncTicketmasterToDb(params: { city?: string; postalCode?: string; radius?: number; maxPages?: number }): Promise<SyncResult> {
   const key = `${params.city?.toLowerCase() ?? ""}:${params.postalCode ?? ""}:${params.radius ?? ""}`;
   const lastSync = recentSyncs.get(key);
   if (lastSync && Date.now() - lastSync < SYNC_COOLDOWN_MS) {
@@ -128,7 +138,7 @@ export async function syncTicketmasterToDb(params: { city?: string; postalCode?:
 
   let events: TMEvent[];
   try {
-    events = await fetchTicketmasterEvents({ city: params.city, postalCode: params.postalCode, radius: params.radius });
+    events = await fetchTicketmasterEvents({ city: params.city, postalCode: params.postalCode, radius: params.radius, maxPages: params.maxPages ?? 2 });
   } catch {
     return { eventsFound: 0, showsAdded: 0, showsSkipped: 0, venuesCreated: 0 };
   }
