@@ -1,5 +1,7 @@
 import { type Request, type Response, type NextFunction } from "express";
-import { clearSession, getSession, getSessionId } from "../lib/auth";
+import { eq } from "drizzle-orm";
+import { db, usersTable } from "@workspace/db";
+import { clearSession, getSession, getSessionId, updateSession } from "../lib/auth";
 
 export interface AuthUser {
   id: string;
@@ -47,5 +49,22 @@ export async function authMiddleware(req: Request, res: Response, next: NextFunc
   }
 
   req.user = session.user;
+
+  // Re-hydrate stale sessions that pre-date the isSuperAdmin field
+  if ((req.user as any).isSuperAdmin === undefined) {
+    const [dbUser] = await db
+      .select({ isAdmin: usersTable.isAdmin, isSuperAdmin: usersTable.isSuperAdmin })
+      .from(usersTable)
+      .where(eq(usersTable.id, req.user.id));
+    if (dbUser) {
+      req.user.isAdmin = dbUser.isAdmin;
+      req.user.isSuperAdmin = dbUser.isSuperAdmin;
+      // Write the refreshed fields back into the session so this only runs once
+      await updateSession(sid, { ...session, user: req.user });
+    } else {
+      req.user.isSuperAdmin = false;
+    }
+  }
+
   next();
 }
