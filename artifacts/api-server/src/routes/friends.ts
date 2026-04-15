@@ -268,21 +268,36 @@ router.get("/friends/activity", async (req, res): Promise<void> => {
     entry.friends.push({ ...row.attendance, user: friendUsers.find(u => u.id === row.attendance.userId) });
   }
 
-  const result = Array.from(showMap.values()).map(({ show, venue, friends }) => ({
-    showId: show.id,
-    showTitle: show.title,
-    showDate: show.showDate.toISOString(),
-    venueName: venue.name,
-    venueCity: venue.city,
-    ticketUrl: show.ticketUrl,
-    friends: friends.map(f => ({
-      userId: 0,
-      username: f.user?.username ?? f.user?.email ?? f.userId,
-      displayName: f.user?.firstName ? `${f.user.firstName} ${f.user.lastName ?? ""}`.trim() : null,
-      profileImageUrl: f.user?.profileImageUrl ?? null,
-      boughtTickets: f.boughtTickets,
-    })),
-  }));
+  // Fetch current user's own attendance for these shows
+  const showIds = Array.from(showMap.keys());
+  const myAttendance = showIds.length > 0
+    ? await db.select().from(attendanceTable).where(
+        and(eq(attendanceTable.userId, req.user.id), inArray(attendanceTable.showId, showIds))
+      )
+    : [];
+  const myAttendanceByShow = new Map(myAttendance.map(a => [a.showId, a]));
+
+  const result = Array.from(showMap.values()).map(({ show, venue, friends }) => {
+    const myA = myAttendanceByShow.get(show.id);
+    return {
+      showId: show.id,
+      showTitle: show.title,
+      showDate: show.showDate.toISOString(),
+      venueName: venue.name,
+      venueCity: venue.city,
+      ticketUrl: show.ticketUrl,
+      currentUserAttending: myA != null && !myA.interested,
+      currentUserBoughtTickets: myA?.boughtTickets ?? false,
+      currentUserInterested: myA?.interested ?? false,
+      friends: friends.map(f => ({
+        userId: 0,
+        username: f.user?.username ?? f.user?.email ?? f.userId,
+        displayName: f.user?.firstName ? `${f.user.firstName} ${f.user.lastName ?? ""}`.trim() : null,
+        profileImageUrl: f.user?.profileImageUrl ?? null,
+        boughtTickets: f.boughtTickets,
+      })),
+    };
+  });
 
   res.json(GetFriendsActivityResponse.parse(result));
 });

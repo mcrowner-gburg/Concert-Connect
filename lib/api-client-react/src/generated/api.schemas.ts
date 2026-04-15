@@ -199,6 +199,9 @@ export interface FriendActivity {
   venueCity: string;
   /** @nullable */
   ticketUrl?: string | null;
+  currentUserAttending: boolean;
+  currentUserBoughtTickets: boolean;
+  currentUserInterested: boolean;
   friends: AttendeeInfo[];
 }
 

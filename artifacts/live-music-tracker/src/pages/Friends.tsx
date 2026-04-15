@@ -1,20 +1,23 @@
 import { useState } from "react";
-import { 
-  useListFriends, 
-  useGetFriendsActivity, 
+import {
+  useListFriends,
+  useGetFriendsActivity,
   useListFriendRequests,
   useSearchUsers,
   useSendFriendRequest,
   useAcceptFriendRequest,
   useDeclineFriendRequest,
   useRemoveFriend,
+  useMarkAttending,
+  useRemoveAttendance,
   getListFriendsQueryKey,
   getListFriendRequestsQueryKey,
-  getGetFriendsActivityQueryKey
+  getGetFriendsActivityQueryKey,
+  getListShowsQueryKey,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
-import { Users, UserPlus, Activity, Check, X, Search, UserX, Bell, Music } from "lucide-react";
+import { Users, UserPlus, Activity, Check, X, Search, UserX, Bell, Music, Star, Ticket, CheckCircle, ExternalLink } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -53,6 +56,13 @@ export function Friends() {
   const { mutate: acceptRequest } = useAcceptFriendRequest();
   const { mutate: declineRequest } = useDeclineFriendRequest();
   const { mutate: removeFriend } = useRemoveFriend();
+  const { mutate: markAttending } = useMarkAttending();
+  const { mutate: removeAttendance } = useRemoveAttendance();
+
+  const invalidateShows = () => {
+    queryClient.invalidateQueries({ queryKey: getGetFriendsActivityQueryKey() });
+    queryClient.invalidateQueries({ queryKey: getListShowsQueryKey() });
+  };
 
   const pendingCount = requests?.length ?? 0;
 
@@ -216,8 +226,10 @@ export function Friends() {
                 </div>
                 <div className="flex-1 min-w-0">
                   <h4 className="text-lg font-display text-foreground truncate">{item.showTitle}</h4>
-                  <p className="text-sm text-muted-foreground font-medium mb-3">{item.venueName} · {item.venueCity}</p>
-                  <div className="flex items-center gap-2 flex-wrap">
+                  <p className="text-sm text-muted-foreground font-medium mb-2">{item.venueName} · {item.venueCity}</p>
+
+                  {/* Friends attending */}
+                  <div className="flex items-center gap-2 flex-wrap mb-3">
                     {item.friends.map(f => (
                       <div key={f.userId} className="flex items-center gap-1.5 bg-white/5 rounded-full pr-3 pl-1 py-1 border border-white/5">
                         <Avatar username={f.username} profileImageUrl={f.profileImageUrl} size="sm" />
@@ -227,6 +239,70 @@ export function Friends() {
                         )}
                       </div>
                     ))}
+                  </div>
+
+                  {/* Action buttons */}
+                  <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-border/40">
+                    {/* Interested — hidden once going */}
+                    {!item.currentUserAttending && (
+                      <button
+                        onClick={() => item.currentUserInterested
+                          ? removeAttendance({ id: item.showId }, { onSuccess: invalidateShows })
+                          : markAttending({ id: item.showId, data: { boughtTickets: false, interested: true } }, { onSuccess: invalidateShows })
+                        }
+                        className={`px-3 py-1.5 rounded-lg font-bold text-xs flex items-center gap-1.5 transition-all duration-200 ${
+                          item.currentUserInterested
+                            ? "bg-amber-500 text-black shadow-[0_0_12px_rgba(245,158,11,0.4)]"
+                            : "bg-white/5 text-foreground hover:bg-white/10 border border-white/10"
+                        }`}
+                      >
+                        <Star className={`w-3.5 h-3.5 ${item.currentUserInterested ? "fill-current" : ""}`} />
+                        {item.currentUserInterested ? "Interested!" : "Interested?"}
+                      </button>
+                    )}
+
+                    {/* Going */}
+                    <button
+                      onClick={() => item.currentUserAttending
+                        ? removeAttendance({ id: item.showId }, { onSuccess: invalidateShows })
+                        : markAttending({ id: item.showId, data: { boughtTickets: false, interested: false } }, { onSuccess: invalidateShows })
+                      }
+                      className={`px-3 py-1.5 rounded-lg font-bold text-xs flex items-center gap-1.5 transition-all duration-200 ${
+                        item.currentUserAttending
+                          ? "bg-primary text-white shadow-[0_0_12px_rgba(255,0,127,0.4)]"
+                          : "bg-white/5 text-foreground hover:bg-white/10 border border-white/10"
+                      }`}
+                    >
+                      <Users className="w-3.5 h-3.5" />
+                      {item.currentUserAttending ? "I'm Going!" : "Going?"}
+                    </button>
+
+                    {/* Tickets — only when going */}
+                    {item.currentUserAttending && (
+                      <button
+                        onClick={() => markAttending({ id: item.showId, data: { boughtTickets: !item.currentUserBoughtTickets, interested: false } }, { onSuccess: invalidateShows })}
+                        className={`px-3 py-1.5 rounded-lg font-bold text-xs flex items-center gap-1.5 transition-all duration-200 ${
+                          item.currentUserBoughtTickets
+                            ? "bg-secondary text-black shadow-[0_0_12px_rgba(0,240,255,0.4)]"
+                            : "bg-white/5 text-foreground hover:bg-white/10 border border-white/10"
+                        }`}
+                      >
+                        {item.currentUserBoughtTickets ? <CheckCircle className="w-3.5 h-3.5" /> : <Ticket className="w-3.5 h-3.5" />}
+                        {item.currentUserBoughtTickets ? "Got Tickets" : "Have Tickets?"}
+                      </button>
+                    )}
+
+                    {/* External ticket link */}
+                    {item.ticketUrl && (
+                      <a
+                        href={item.ticketUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="ml-auto flex items-center gap-1 text-xs font-bold text-secondary hover:text-primary transition-colors"
+                      >
+                        Get Tickets <ExternalLink className="w-3 h-3" />
+                      </a>
+                    )}
                   </div>
                 </div>
               </div>

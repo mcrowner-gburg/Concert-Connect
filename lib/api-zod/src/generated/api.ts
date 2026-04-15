@@ -409,6 +409,9 @@ export const GetFriendsActivityResponseItem = zod.object({
   venueName: zod.string(),
   venueCity: zod.string(),
   ticketUrl: zod.string().nullish(),
+  currentUserAttending: zod.boolean(),
+  currentUserBoughtTickets: zod.boolean(),
+  currentUserInterested: zod.boolean(),
   friends: zod.array(
     zod.object({
       userId: zod.number(),
