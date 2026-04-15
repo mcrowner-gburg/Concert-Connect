@@ -11,5 +11,6 @@ export interface Attendance {
   userId: number;
   showId: number;
   boughtTickets: boolean;
+  interested: boolean;
   createdAt: string;
 }

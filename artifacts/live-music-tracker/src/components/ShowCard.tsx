@@ -1,5 +1,5 @@
 import { format, parseISO } from "date-fns";
-import { MapPin, Clock, Ticket, Users, ExternalLink, CheckCircle } from "lucide-react";
+import { MapPin, Clock, Ticket, Users, ExternalLink, CheckCircle, Star } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { motion } from "framer-motion";
 import { 
@@ -31,15 +31,23 @@ export function ShowCard({ show }: ShowCardProps) {
     if (show.currentUserAttending) {
       removeAttendance({ id: show.id }, { onSuccess: invalidateQueries });
     } else {
-      markAttending({ id: show.id, data: { boughtTickets: false } }, { onSuccess: invalidateQueries });
+      markAttending({ id: show.id, data: { boughtTickets: false, interested: false } }, { onSuccess: invalidateQueries });
     }
   };
 
   const toggleTickets = () => {
     if (!show.currentUserAttending) {
-      markAttending({ id: show.id, data: { boughtTickets: true } }, { onSuccess: invalidateQueries });
+      markAttending({ id: show.id, data: { boughtTickets: true, interested: false } }, { onSuccess: invalidateQueries });
     } else {
-      markAttending({ id: show.id, data: { boughtTickets: !show.currentUserBoughtTickets } }, { onSuccess: invalidateQueries });
+      markAttending({ id: show.id, data: { boughtTickets: !show.currentUserBoughtTickets, interested: false } }, { onSuccess: invalidateQueries });
+    }
+  };
+
+  const toggleInterested = () => {
+    if (show.currentUserInterested) {
+      removeAttendance({ id: show.id }, { onSuccess: invalidateQueries });
+    } else {
+      markAttending({ id: show.id, data: { boughtTickets: false, interested: true } }, { onSuccess: invalidateQueries });
     }
   };
 
@@ -120,13 +128,30 @@ export function ShowCard({ show }: ShowCardProps) {
         {/* Action Bar */}
         <div className="mt-6 pt-4 border-t border-border/50 flex flex-wrap items-center justify-between gap-4">
           <div className="flex items-center gap-2">
+            {!show.currentUserAttending && (
+              <button
+                onClick={toggleInterested}
+                disabled={isPending}
+                className={`
+                  px-4 py-2 rounded-lg font-bold text-sm flex items-center gap-2 transition-all duration-300
+                  ${show.currentUserInterested
+                    ? 'bg-amber-500 text-black shadow-[0_0_15px_rgba(245,158,11,0.4)]'
+                    : 'bg-white/5 text-foreground hover:bg-white/10 border border-white/10'}
+                  disabled:opacity-50 disabled:cursor-not-allowed
+                `}
+              >
+                <Star className={`w-4 h-4 ${show.currentUserInterested ? 'fill-current' : ''}`} />
+                {show.currentUserInterested ? "Interested!" : "Interested?"}
+              </button>
+            )}
+
             <button
               onClick={toggleAttendance}
               disabled={isPending}
               className={`
                 px-4 py-2 rounded-lg font-bold text-sm flex items-center gap-2 transition-all duration-300
-                ${show.currentUserAttending 
-                  ? 'bg-primary text-white shadow-[0_0_15px_rgba(255,0,127,0.4)]' 
+                ${show.currentUserAttending
+                  ? 'bg-primary text-white shadow-[0_0_15px_rgba(255,0,127,0.4)]'
                   : 'bg-white/5 text-foreground hover:bg-white/10 border border-white/10'}
                 disabled:opacity-50 disabled:cursor-not-allowed
               `}
@@ -134,15 +159,15 @@ export function ShowCard({ show }: ShowCardProps) {
               <Users className="w-4 h-4" />
               {show.currentUserAttending ? "I'm Going!" : "Going?"}
             </button>
-            
+
             {show.currentUserAttending && (
               <button
                 onClick={toggleTickets}
                 disabled={isPending}
                 className={`
                   px-4 py-2 rounded-lg font-bold text-sm flex items-center gap-2 transition-all duration-300
-                  ${show.currentUserBoughtTickets 
-                    ? 'bg-secondary text-black shadow-[0_0_15px_rgba(0,240,255,0.4)]' 
+                  ${show.currentUserBoughtTickets
+                    ? 'bg-secondary text-black shadow-[0_0_15px_rgba(0,240,255,0.4)]'
                     : 'bg-white/5 text-foreground hover:bg-white/10 border border-white/10'}
                   disabled:opacity-50 disabled:cursor-not-allowed
                 `}

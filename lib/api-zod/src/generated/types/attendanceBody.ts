@@ -8,4 +8,5 @@
 
 export interface AttendanceBody {
   boughtTickets: boolean;
+  interested?: boolean;
 }

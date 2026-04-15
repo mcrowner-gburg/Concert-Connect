@@ -58,6 +58,7 @@ export const attendanceTable = pgTable("attendance", {
   userId: text("user_id").notNull().references(() => usersTable.id, { onDelete: "cascade" }),
   showId: integer("show_id").notNull().references(() => showsTable.id, { onDelete: "cascade" }),
   boughtTickets: boolean("bought_tickets").notNull().default(false),
+  interested: boolean("interested").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });

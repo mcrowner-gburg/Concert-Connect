@@ -227,6 +227,7 @@ export const ListShowsResponseItem = zod.object({
   attendeeCount: zod.number(),
   currentUserAttending: zod.boolean(),
   currentUserBoughtTickets: zod.boolean(),
+  currentUserInterested: zod.boolean(),
   friendsAttending: zod.array(
     zod.object({
       userId: zod.number(),
@@ -275,6 +276,7 @@ export const GetShowResponse = zod.object({
   attendeeCount: zod.number(),
   currentUserAttending: zod.boolean(),
   currentUserBoughtTickets: zod.boolean(),
+  currentUserInterested: zod.boolean(),
   friendsAttending: zod.array(
     zod.object({
       userId: zod.number(),
@@ -295,6 +297,7 @@ export const MarkAttendingParams = zod.object({
 
 export const MarkAttendingBody = zod.object({
   boughtTickets: zod.boolean(),
+  interested: zod.boolean().optional(),
 });
 
 export const MarkAttendingResponse = zod.object({
@@ -302,6 +305,7 @@ export const MarkAttendingResponse = zod.object({
   userId: zod.number(),
   showId: zod.number(),
   boughtTickets: zod.boolean(),
+  interested: zod.boolean(),
   createdAt: zod.string(),
 });
 

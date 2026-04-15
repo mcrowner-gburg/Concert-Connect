@@ -139,6 +139,7 @@ export interface ShowWithDetails {
   attendeeCount: number;
   currentUserAttending: boolean;
   currentUserBoughtTickets: boolean;
+  currentUserInterested: boolean;
   friendsAttending: AttendeeInfo[];
 }
 
@@ -147,11 +148,13 @@ export interface Attendance {
   userId: number;
   showId: number;
   boughtTickets: boolean;
+  interested: boolean;
   createdAt: string;
 }
 
 export interface AttendanceBody {
   boughtTickets: boolean;
+  interested?: boolean;
 }
 
 export interface FriendInfo {

@@ -34,5 +34,6 @@ export interface ShowWithDetails {
   attendeeCount: number;
   currentUserAttending: boolean;
   currentUserBoughtTickets: boolean;
+  currentUserInterested: boolean;
   friendsAttending: AttendeeInfo[];
 }

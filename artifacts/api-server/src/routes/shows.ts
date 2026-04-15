@@ -35,16 +35,18 @@ function mapVenue(v: typeof venuesTable.$inferSelect) {
 
 async function buildShowWithDetails(show: typeof showsTable.$inferSelect, venue: typeof venuesTable.$inferSelect, userId?: string, friendIds?: string[]) {
   const attendees = await db
-    .select({ userId: attendanceTable.userId, boughtTickets: attendanceTable.boughtTickets })
+    .select({ userId: attendanceTable.userId, boughtTickets: attendanceTable.boughtTickets, interested: attendanceTable.interested })
     .from(attendanceTable)
     .where(eq(attendanceTable.showId, show.id));
 
   const currentUserAttendance = userId ? attendees.find(a => a.userId === userId) : null;
-  const currentUserAttending = !!currentUserAttendance;
+  const currentUserInterested = currentUserAttendance?.interested ?? false;
+  const currentUserAttending = !!currentUserAttendance && !currentUserInterested;
   const currentUserBoughtTickets = currentUserAttendance?.boughtTickets ?? false;
 
+  const goingAttendees = attendees.filter(a => !a.interested);
   const friendAttendees = friendIds && friendIds.length > 0
-    ? attendees.filter(a => friendIds.includes(a.userId))
+    ? goingAttendees.filter(a => friendIds.includes(a.userId))
     : [];
 
   let friendsAttending: Array<{ userId: number; username: string; displayName: string | null; profileImageUrl: string | null; boughtTickets: boolean }> = [];
@@ -77,9 +79,10 @@ async function buildShowWithDetails(show: typeof showsTable.$inferSelect, venue:
     sourceUrl: show.sourceUrl,
     createdAt: show.createdAt.toISOString(),
     venue: mapVenue(venue),
-    attendeeCount: attendees.length,
+    attendeeCount: goingAttendees.length,
     currentUserAttending,
     currentUserBoughtTickets,
+    currentUserInterested,
     friendsAttending,
   };
 }
@@ -169,7 +172,7 @@ router.get("/shows/attending", async (req, res): Promise<void> => {
     .from(attendanceTable)
     .innerJoin(showsTable, eq(attendanceTable.showId, showsTable.id))
     .innerJoin(venuesTable, eq(showsTable.venueId, venuesTable.id))
-    .where(and(eq(attendanceTable.userId, req.user.id), gte(showsTable.showDate, now)))
+    .where(and(eq(attendanceTable.userId, req.user.id), eq(attendanceTable.interested, false), gte(showsTable.showDate, now)))
     .orderBy(showsTable.showDate);
 
   const myFriends = await db.select({ friendId: friendsTable.friendId }).from(friendsTable).where(eq(friendsTable.userId, req.user.id));
@@ -195,7 +198,7 @@ router.get("/shows/history", async (req, res): Promise<void> => {
     .from(attendanceTable)
     .innerJoin(showsTable, eq(attendanceTable.showId, showsTable.id))
     .innerJoin(venuesTable, eq(showsTable.venueId, venuesTable.id))
-    .where(and(eq(attendanceTable.userId, req.user.id), lte(showsTable.showDate, now)))
+    .where(and(eq(attendanceTable.userId, req.user.id), eq(attendanceTable.interested, false), lte(showsTable.showDate, now)))
     .orderBy(showsTable.showDate);
 
   const myFriends = await db.select({ friendId: friendsTable.friendId }).from(friendsTable).where(eq(friendsTable.userId, req.user.id));
@@ -283,17 +286,21 @@ router.post("/shows/:id/attend", async (req, res): Promise<void> => {
   const [existing] = await db.select().from(attendanceTable)
     .where(and(eq(attendanceTable.userId, req.user.id), eq(attendanceTable.showId, params.data.id)));
 
+  const interested = parsed.data.interested ?? false;
+  const boughtTickets = interested ? false : parsed.data.boughtTickets;
+
   let attendance;
   if (existing) {
     [attendance] = await db.update(attendanceTable)
-      .set({ boughtTickets: parsed.data.boughtTickets })
+      .set({ boughtTickets, interested })
       .where(and(eq(attendanceTable.userId, req.user.id), eq(attendanceTable.showId, params.data.id)))
       .returning();
   } else {
     [attendance] = await db.insert(attendanceTable).values({
       userId: req.user.id,
       showId: params.data.id,
-      boughtTickets: parsed.data.boughtTickets,
+      boughtTickets,
+      interested,
     }).returning();
   }
 
@@ -302,6 +309,7 @@ router.post("/shows/:id/attend", async (req, res): Promise<void> => {
     userId: 0,
     showId: attendance.showId,
     boughtTickets: attendance.boughtTickets,
+    interested: attendance.interested,
     createdAt: attendance.createdAt.toISOString(),
   }));
 });
