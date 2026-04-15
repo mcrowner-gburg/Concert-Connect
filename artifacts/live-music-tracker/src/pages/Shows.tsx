@@ -23,8 +23,11 @@ export function Shows() {
   const [activeZip, setActiveZip] = useState("");
   const [activeRadius, setActiveRadius] = useState(25);
 
-  // Client-side filters
+  // Venue filter — name for display, id for the API call
   const [venueFilter, setVenueFilter] = useState("");
+  const [activeVenueId, setActiveVenueId] = useState<number | undefined>(undefined);
+
+  // Client-side band filter
   const [bandFilter, setBandFilter] = useState("");
 
   const [showAddModal, setShowAddModal] = useState(false);
@@ -33,39 +36,38 @@ export function Shows() {
     city: activeCity || undefined,
     zipCode: activeZip || undefined,
     radius: activeZip ? activeRadius : undefined,
+    venueId: activeVenueId,
   });
 
-  // Build unique sorted venue list from loaded shows
-  const venues = useMemo(() => {
-    if (!shows) return [];
-    const seen = new Set<string>();
-    const list: string[] = [];
+  // Build venue name→id map from loaded shows (before venue filter is applied)
+  const venueMap = useMemo(() => {
+    if (!shows) return new Map<string, number>();
+    const map = new Map<string, number>();
     for (const s of shows) {
-      const name = s.venue.name;
-      if (!seen.has(name)) { seen.add(name); list.push(name); }
+      if (!map.has(s.venue.name)) map.set(s.venue.name, s.venue.id);
     }
-    return list.sort();
+    return map;
   }, [shows]);
 
+  const venues = useMemo(() => Array.from(venueMap.keys()).sort(), [venueMap]);
+
+  // Only band filter is client-side now; venue filtering is server-side
   const filteredShows = useMemo(() => {
     if (!shows) return [];
-    let result = shows;
-    if (venueFilter) result = result.filter(s => s.venue.name === venueFilter);
-    if (bandFilter.trim()) {
-      const q = bandFilter.trim().toLowerCase();
-      result = result.filter(s =>
-        (s.artist ?? s.title).toLowerCase().includes(q) ||
-        s.title.toLowerCase().includes(q)
-      );
-    }
-    return result;
-  }, [shows, venueFilter, bandFilter]);
+    if (!bandFilter.trim()) return shows;
+    const q = bandFilter.trim().toLowerCase();
+    return shows.filter(s =>
+      (s.artist ?? s.title).toLowerCase().includes(q) ||
+      s.title.toLowerCase().includes(q)
+    );
+  }, [shows, bandFilter]);
 
   const handleSearch = () => {
     setActiveCity(cityInput.trim());
     setActiveZip(zipInput.trim());
     setActiveRadius(radius);
     setVenueFilter("");
+    setActiveVenueId(undefined);
     setBandFilter("");
   };
 
@@ -79,7 +81,13 @@ export function Shows() {
     setActiveCity("");
     setActiveZip("");
     setVenueFilter("");
+    setActiveVenueId(undefined);
     setBandFilter("");
+  };
+
+  const handleVenueChange = (name: string) => {
+    setVenueFilter(name);
+    setActiveVenueId(name ? venueMap.get(name) : undefined);
   };
 
   const hasActiveSearch = activeCity || activeZip;
@@ -183,7 +191,7 @@ export function Shows() {
         )}
 
         {/* Active search + venue filter row */}
-        {(hasActiveSearch || bandFilter) && (
+        {(hasActiveSearch || bandFilter || venueFilter) && (
           <div className="flex flex-wrap items-center gap-3 pt-1 border-t border-border/50">
             {hasActiveSearch && (
               <div className="flex items-center gap-2 text-xs text-muted-foreground">
@@ -212,7 +220,7 @@ export function Shows() {
                 <Filter className="w-3.5 h-3.5 text-muted-foreground" />
                 <select
                   value={venueFilter}
-                  onChange={e => setVenueFilter(e.target.value)}
+                  onChange={e => handleVenueChange(e.target.value)}
                   className="bg-background border border-border rounded-lg px-3 py-1 text-xs text-foreground outline-none focus:border-secondary cursor-pointer"
                 >
                   <option value="">All venues ({filteredShows.length})</option>

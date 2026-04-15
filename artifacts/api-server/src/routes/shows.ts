@@ -132,13 +132,17 @@ router.get("/shows", async (req, res): Promise<void> => {
     }
   }
 
+  // Expand limit when scoped to a specific location or venue — keeps the default
+  // preference-based view snappy while letting targeted searches go deeper.
+  const queryLimit = (city || zipCode || venueId) ? 500 : 200;
+
   const shows = await db
     .select({ show: showsTable, venue: venuesTable })
     .from(showsTable)
     .innerJoin(venuesTable, eq(showsTable.venueId, venuesTable.id))
     .where(conditions.length > 0 ? and(...conditions) : undefined)
     .orderBy(showsTable.showDate)
-    .limit(200);
+    .limit(queryLimit);
 
   let friendIds: string[] = [];
   if (req.isAuthenticated()) {
