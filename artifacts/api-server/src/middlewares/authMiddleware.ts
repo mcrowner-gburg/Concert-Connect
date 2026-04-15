@@ -9,6 +9,7 @@ export interface AuthUser {
   lastName: string | null;
   profileImageUrl: string | null;
   isAdmin: boolean;
+  isSuperAdmin: boolean;
   createdAt: string;
 }
 

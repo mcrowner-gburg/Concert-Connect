@@ -8,10 +8,11 @@ import {
   getListVenuesQueryKey,
   getListShowsQueryKey,
 } from "@workspace/api-client-react";
+import { useAuth } from "@workspace/replit-auth-web";
 import {
   ShieldAlert, Plus, Globe, RefreshCw, Zap, MapPin, Hash,
   CheckCircle2, Loader2, Users, Trash2, ShieldCheck, Shield,
-  ChevronDown, ChevronUp,
+  Crown,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { format, parseISO } from "date-fns";
@@ -24,6 +25,7 @@ interface AdminUser {
   lastName: string | null;
   profileImageUrl: string | null;
   isAdmin: boolean;
+  isSuperAdmin: boolean;
   createdAt: string;
   showsCount: number;
   friendsCount: number;
@@ -62,6 +64,7 @@ function useAdminUsers() {
 type Tab = "venues" | "users";
 
 export function Admin() {
+  const { user: currentUser } = useAuth();
   const [activeTab, setActiveTab] = useState<Tab>("venues");
 
   // Venues state
@@ -219,46 +222,52 @@ export function Admin() {
                       <td className="p-4 text-foreground">{user.showsCount}</td>
                       <td className="p-4 text-foreground">{user.friendsCount}</td>
                       <td className="p-4">
-                        {user.isAdmin
-                          ? <span className="inline-flex items-center gap-1 bg-primary/20 text-primary border border-primary/30 px-2 py-0.5 rounded-full text-xs font-bold"><ShieldCheck className="w-3 h-3" /> Admin</span>
-                          : <span className="text-muted-foreground text-xs">User</span>
+                        {user.isSuperAdmin
+                          ? <span className="inline-flex items-center gap-1 bg-amber-500/20 text-amber-400 border border-amber-500/30 px-2 py-0.5 rounded-full text-xs font-bold"><Crown className="w-3 h-3" /> Super Admin</span>
+                          : user.isAdmin
+                            ? <span className="inline-flex items-center gap-1 bg-primary/20 text-primary border border-primary/30 px-2 py-0.5 rounded-full text-xs font-bold"><ShieldCheck className="w-3 h-3" /> Admin</span>
+                            : <span className="text-muted-foreground text-xs">User</span>
                         }
                       </td>
                       <td className="p-4">
                         <div className="flex justify-end gap-2">
-                          <button
-                            onClick={() => toggleAdmin.mutate({ id: user.id, isAdmin: !user.isAdmin })}
-                            disabled={toggleAdmin.isPending}
-                            className="px-3 py-1.5 bg-white/5 hover:bg-white/10 text-muted-foreground hover:text-white rounded-lg flex items-center gap-1.5 transition-colors text-xs font-bold border border-white/10"
-                            title={user.isAdmin ? "Remove admin" : "Make admin"}
-                          >
-                            {user.isAdmin ? <Shield className="w-3 h-3" /> : <ShieldCheck className="w-3 h-3" />}
-                            {user.isAdmin ? "Remove Admin" : "Make Admin"}
-                          </button>
-
-                          {confirmDelete === user.id ? (
-                            <div className="flex gap-1">
-                              <button
-                                onClick={() => deleteUser.mutate(user.id)}
-                                disabled={deleteUser.isPending}
-                                className="px-3 py-1.5 bg-destructive text-white rounded-lg text-xs font-bold hover:bg-destructive/90 transition-colors"
-                              >
-                                Confirm
-                              </button>
-                              <button
-                                onClick={() => setConfirmDelete(null)}
-                                className="px-3 py-1.5 bg-white/5 text-muted-foreground rounded-lg text-xs font-bold hover:bg-white/10 transition-colors border border-white/10"
-                              >
-                                Cancel
-                              </button>
-                            </div>
-                          ) : (
+                          {currentUser?.isSuperAdmin && !user.isSuperAdmin && (
                             <button
-                              onClick={() => setConfirmDelete(user.id)}
-                              className="px-3 py-1.5 bg-destructive/10 text-destructive hover:bg-destructive hover:text-white rounded-lg flex items-center gap-1 transition-colors text-xs font-bold"
+                              onClick={() => toggleAdmin.mutate({ id: user.id, isAdmin: !user.isAdmin })}
+                              disabled={toggleAdmin.isPending}
+                              className="px-3 py-1.5 bg-white/5 hover:bg-white/10 text-muted-foreground hover:text-white rounded-lg flex items-center gap-1.5 transition-colors text-xs font-bold border border-white/10"
+                              title={user.isAdmin ? "Remove admin" : "Make admin"}
                             >
-                              <Trash2 className="w-3 h-3" /> Delete
+                              {user.isAdmin ? <Shield className="w-3 h-3" /> : <ShieldCheck className="w-3 h-3" />}
+                              {user.isAdmin ? "Remove Admin" : "Make Admin"}
                             </button>
+                          )}
+
+                          {currentUser?.isSuperAdmin && !user.isSuperAdmin && (
+                            confirmDelete === user.id ? (
+                              <div className="flex gap-1">
+                                <button
+                                  onClick={() => deleteUser.mutate(user.id)}
+                                  disabled={deleteUser.isPending}
+                                  className="px-3 py-1.5 bg-destructive text-white rounded-lg text-xs font-bold hover:bg-destructive/90 transition-colors"
+                                >
+                                  Confirm
+                                </button>
+                                <button
+                                  onClick={() => setConfirmDelete(null)}
+                                  className="px-3 py-1.5 bg-white/5 text-muted-foreground rounded-lg text-xs font-bold hover:bg-white/10 transition-colors border border-white/10"
+                                >
+                                  Cancel
+                                </button>
+                              </div>
+                            ) : (
+                              <button
+                                onClick={() => setConfirmDelete(user.id)}
+                                className="px-3 py-1.5 bg-destructive/10 text-destructive hover:bg-destructive hover:text-white rounded-lg flex items-center gap-1 transition-colors text-xs font-bold"
+                              >
+                                <Trash2 className="w-3 h-3" /> Delete
+                              </button>
+                            )
                           )}
                         </div>
                       </td>

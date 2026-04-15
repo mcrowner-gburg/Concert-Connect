@@ -76,6 +76,7 @@ router.post("/register", async (req: Request, res: Response) => {
       lastName: user.lastName,
       profileImageUrl: user.profileImageUrl,
       isAdmin: user.isAdmin,
+      isSuperAdmin: user.isSuperAdmin,
       createdAt: user.createdAt.toISOString(),
     },
   };
@@ -105,10 +106,15 @@ router.post("/login", async (req: Request, res: Response) => {
     return;
   }
 
-  // Auto-promote to admin if this email matches the ADMIN_EMAIL env var
-  if (process.env.ADMIN_EMAIL && user.email === process.env.ADMIN_EMAIL && !user.isAdmin) {
-    await db.update(usersTable).set({ isAdmin: true }).where(eq(usersTable.id, user.id));
-    user.isAdmin = true;
+  // Auto-promote ADMIN_EMAIL to admin + super admin
+  if (process.env.ADMIN_EMAIL && user.email === process.env.ADMIN_EMAIL) {
+    const updates: { isAdmin?: boolean; isSuperAdmin?: boolean } = {};
+    if (!user.isAdmin) updates.isAdmin = true;
+    if (!user.isSuperAdmin) updates.isSuperAdmin = true;
+    if (Object.keys(updates).length > 0) {
+      await db.update(usersTable).set(updates).where(eq(usersTable.id, user.id));
+      Object.assign(user, updates);
+    }
   }
 
   const sessionData: SessionData = {
@@ -120,6 +126,7 @@ router.post("/login", async (req: Request, res: Response) => {
       lastName: user.lastName,
       profileImageUrl: user.profileImageUrl,
       isAdmin: user.isAdmin,
+      isSuperAdmin: user.isSuperAdmin,
       createdAt: user.createdAt.toISOString(),
     },
   };
