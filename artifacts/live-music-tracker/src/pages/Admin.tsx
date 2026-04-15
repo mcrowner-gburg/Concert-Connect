@@ -11,8 +11,7 @@ import {
 import { useAuth } from "@workspace/replit-auth-web";
 import {
   ShieldAlert, Plus, Globe, RefreshCw, Zap, MapPin, Hash,
-  CheckCircle2, Loader2, Users, Trash2, ShieldCheck, Shield,
-  Crown,
+  CheckCircle2, Loader2, Trash2, ShieldCheck, Crown, Pencil, X,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { format, parseISO } from "date-fns";
@@ -80,6 +79,8 @@ export function Admin() {
 
   // Users state
   const { data: users, isLoading: loadingUsers } = useAdminUsers();
+  const [editingUser, setEditingUser] = useState<AdminUser | null>(null);
+  const [editForm, setEditForm] = useState({ firstName: "", lastName: "", username: "", isAdmin: false });
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
 
   const queryClient = useQueryClient();
@@ -96,19 +97,20 @@ export function Admin() {
     onError: (err: Error) => toast({ title: "Sync Failed", description: err.message, variant: "destructive" }),
   });
 
-  const toggleAdmin = useMutation({
-    mutationFn: async ({ id, isAdmin }: { id: string; isAdmin: boolean }) => {
+  const updateUser = useMutation({
+    mutationFn: async ({ id, data }: { id: string; data: Record<string, unknown> }) => {
       const res = await fetch(`/api/admin/users/${id}`, {
         method: "PATCH",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ isAdmin }),
+        body: JSON.stringify(data),
       });
-      if (!res.ok) throw new Error("Failed to update user");
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error ?? "Failed to update user");
       return res.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
+      setEditingUser(null);
       toast({ title: "User updated" });
     },
     onError: (err: Error) => toast({ variant: "destructive", title: "Error", description: err.message }),
@@ -122,10 +124,28 @@ export function Admin() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
       setConfirmDelete(null);
+      setEditingUser(null);
       toast({ title: "User deleted" });
     },
     onError: (err: Error) => toast({ variant: "destructive", title: "Error", description: err.message }),
   });
+
+  const openEdit = (user: AdminUser) => {
+    setEditForm({
+      firstName: user.firstName ?? "",
+      lastName: user.lastName ?? "",
+      username: user.username ?? "",
+      isAdmin: user.isAdmin,
+    });
+    setConfirmDelete(null);
+    setEditingUser(user);
+  };
+
+  const handleSaveEdit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingUser) return;
+    updateUser.mutate({ id: editingUser.id, data: editForm });
+  };
 
   const handleCreate = (e: React.FormEvent) => {
     e.preventDefault();
@@ -230,44 +250,14 @@ export function Admin() {
                         }
                       </td>
                       <td className="p-4">
-                        <div className="flex justify-end gap-2">
+                        <div className="flex justify-end">
                           {currentUser?.isSuperAdmin && !user.isSuperAdmin && (
                             <button
-                              onClick={() => toggleAdmin.mutate({ id: user.id, isAdmin: !user.isAdmin })}
-                              disabled={toggleAdmin.isPending}
+                              onClick={() => openEdit(user)}
                               className="px-3 py-1.5 bg-white/5 hover:bg-white/10 text-muted-foreground hover:text-white rounded-lg flex items-center gap-1.5 transition-colors text-xs font-bold border border-white/10"
-                              title={user.isAdmin ? "Remove admin" : "Make admin"}
                             >
-                              {user.isAdmin ? <Shield className="w-3 h-3" /> : <ShieldCheck className="w-3 h-3" />}
-                              {user.isAdmin ? "Remove Admin" : "Make Admin"}
+                              <Pencil className="w-3 h-3" /> Edit
                             </button>
-                          )}
-
-                          {currentUser?.isSuperAdmin && !user.isSuperAdmin && (
-                            confirmDelete === user.id ? (
-                              <div className="flex gap-1">
-                                <button
-                                  onClick={() => deleteUser.mutate(user.id)}
-                                  disabled={deleteUser.isPending}
-                                  className="px-3 py-1.5 bg-destructive text-white rounded-lg text-xs font-bold hover:bg-destructive/90 transition-colors"
-                                >
-                                  Confirm
-                                </button>
-                                <button
-                                  onClick={() => setConfirmDelete(null)}
-                                  className="px-3 py-1.5 bg-white/5 text-muted-foreground rounded-lg text-xs font-bold hover:bg-white/10 transition-colors border border-white/10"
-                                >
-                                  Cancel
-                                </button>
-                              </div>
-                            ) : (
-                              <button
-                                onClick={() => setConfirmDelete(user.id)}
-                                className="px-3 py-1.5 bg-destructive/10 text-destructive hover:bg-destructive hover:text-white rounded-lg flex items-center gap-1 transition-colors text-xs font-bold"
-                              >
-                                <Trash2 className="w-3 h-3" /> Delete
-                              </button>
-                            )
                           )}
                         </div>
                       </td>
@@ -276,6 +266,125 @@ export function Admin() {
                 </tbody>
               </table>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── EDIT USER MODAL ───────────────────────────── */}
+      {editingUser && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setEditingUser(null)} />
+          <div className="relative w-full max-w-md bg-card border border-border/60 rounded-2xl shadow-2xl overflow-hidden">
+
+            {/* Header */}
+            <div className="flex items-center justify-between px-6 py-5 border-b border-border/50">
+              <div>
+                <h2 className="text-xl font-display text-white">Edit User</h2>
+                <p className="text-sm text-muted-foreground mt-0.5">{editingUser.email}</p>
+              </div>
+              <button onClick={() => setEditingUser(null)} className="p-2 text-muted-foreground hover:text-white hover:bg-white/10 rounded-xl transition-colors">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveEdit}>
+              <div className="px-6 py-5 space-y-4">
+
+                {/* Name */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider block mb-1.5">First Name</label>
+                    <input
+                      type="text"
+                      value={editForm.firstName}
+                      onChange={e => setEditForm(f => ({ ...f, firstName: e.target.value }))}
+                      className={inputClass}
+                      placeholder="First name"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider block mb-1.5">Last Name</label>
+                    <input
+                      type="text"
+                      value={editForm.lastName}
+                      onChange={e => setEditForm(f => ({ ...f, lastName: e.target.value }))}
+                      className={inputClass}
+                      placeholder="Last name"
+                    />
+                  </div>
+                </div>
+
+                {/* Username */}
+                <div>
+                  <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider block mb-1.5">Username</label>
+                  <input
+                    type="text"
+                    value={editForm.username}
+                    onChange={e => setEditForm(f => ({ ...f, username: e.target.value }))}
+                    className={inputClass}
+                    placeholder="username"
+                  />
+                </div>
+
+                {/* Admin toggle */}
+                <div className="flex items-center justify-between bg-background/50 border border-border/50 rounded-xl px-4 py-3">
+                  <div>
+                    <p className="text-sm font-bold text-foreground">Admin Access</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">Can add shows and import files</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setEditForm(f => ({ ...f, isAdmin: !f.isAdmin }))}
+                    className={`relative w-11 h-6 rounded-full transition-colors ${editForm.isAdmin ? "bg-primary" : "bg-white/10"}`}
+                  >
+                    <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${editForm.isAdmin ? "translate-x-5" : "translate-x-0"}`} />
+                  </button>
+                </div>
+
+                {editForm.isAdmin && (
+                  <div className="flex items-center gap-2 bg-primary/10 border border-primary/20 rounded-xl px-4 py-2.5 text-xs text-primary font-medium">
+                    <ShieldCheck className="w-4 h-4 shrink-0" />
+                    This user will be able to add shows and import spreadsheets.
+                  </div>
+                )}
+
+              </div>
+
+              {/* Footer */}
+              <div className="px-6 py-4 border-t border-border/50 flex items-center justify-between bg-background/30">
+                {/* Delete */}
+                {confirmDelete === editingUser.id ? (
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-muted-foreground">Sure?</span>
+                    <button type="button" onClick={() => deleteUser.mutate(editingUser.id)} disabled={deleteUser.isPending}
+                      className="px-3 py-1.5 bg-destructive text-white rounded-lg text-xs font-bold hover:bg-destructive/90 transition-colors">
+                      {deleteUser.isPending ? "Deleting..." : "Yes, delete"}
+                    </button>
+                    <button type="button" onClick={() => setConfirmDelete(null)}
+                      className="px-3 py-1.5 bg-white/5 text-muted-foreground rounded-lg text-xs font-bold hover:bg-white/10 transition-colors border border-white/10">
+                      Cancel
+                    </button>
+                  </div>
+                ) : (
+                  <button type="button" onClick={() => setConfirmDelete(editingUser.id)}
+                    className="px-3 py-1.5 bg-destructive/10 text-destructive hover:bg-destructive hover:text-white rounded-lg flex items-center gap-1 transition-colors text-xs font-bold">
+                    <Trash2 className="w-3 h-3" /> Delete User
+                  </button>
+                )}
+
+                <div className="flex gap-2">
+                  <button type="button" onClick={() => setEditingUser(null)}
+                    className="px-4 py-2 rounded-xl text-sm font-bold text-muted-foreground hover:text-white hover:bg-white/10 transition-colors">
+                    Cancel
+                  </button>
+                  <button type="submit" disabled={updateUser.isPending}
+                    className="flex items-center gap-2 px-5 py-2 bg-primary hover:bg-primary/90 text-white rounded-xl text-sm font-bold transition-colors disabled:opacity-60">
+                    {updateUser.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+                    {updateUser.isPending ? "Saving..." : "Save Changes"}
+                  </button>
+                </div>
+              </div>
+            </form>
           </div>
         </div>
       )}
