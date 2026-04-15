@@ -2,7 +2,7 @@ import { useState, useMemo } from "react";
 import { useListShows } from "@workspace/api-client-react";
 import { ShowCard } from "@/components/ShowCard";
 import { AddShowModal } from "@/components/AddShowModal";
-import { Filter, Search, Loader2, Plus, MapPin, Hash, X } from "lucide-react";
+import { Filter, Search, Loader2, Plus, MapPin, Hash, X, Music } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
 const RADIUS_OPTIONS = [
@@ -23,8 +23,9 @@ export function Shows() {
   const [activeZip, setActiveZip] = useState("");
   const [activeRadius, setActiveRadius] = useState(25);
 
-  // Client-side venue filter
+  // Client-side filters
   const [venueFilter, setVenueFilter] = useState("");
+  const [bandFilter, setBandFilter] = useState("");
 
   const [showAddModal, setShowAddModal] = useState(false);
 
@@ -48,15 +49,24 @@ export function Shows() {
 
   const filteredShows = useMemo(() => {
     if (!shows) return [];
-    if (!venueFilter) return shows;
-    return shows.filter(s => s.venue.name === venueFilter);
-  }, [shows, venueFilter]);
+    let result = shows;
+    if (venueFilter) result = result.filter(s => s.venue.name === venueFilter);
+    if (bandFilter.trim()) {
+      const q = bandFilter.trim().toLowerCase();
+      result = result.filter(s =>
+        (s.artist ?? s.title).toLowerCase().includes(q) ||
+        s.title.toLowerCase().includes(q)
+      );
+    }
+    return result;
+  }, [shows, venueFilter, bandFilter]);
 
   const handleSearch = () => {
     setActiveCity(cityInput.trim());
     setActiveZip(zipInput.trim());
     setActiveRadius(radius);
     setVenueFilter("");
+    setBandFilter("");
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -69,6 +79,7 @@ export function Shows() {
     setActiveCity("");
     setActiveZip("");
     setVenueFilter("");
+    setBandFilter("");
   };
 
   const hasActiveSearch = activeCity || activeZip;
@@ -132,6 +143,23 @@ export function Shows() {
           </button>
         </div>
 
+        {/* Band search */}
+        <div className="flex items-center gap-2 bg-background border border-border rounded-xl px-3 py-2.5">
+          <Music className="w-4 h-4 text-muted-foreground shrink-0" />
+          <input
+            type="text"
+            placeholder="Filter by band / artist..."
+            value={bandFilter}
+            onChange={e => setBandFilter(e.target.value)}
+            className="bg-transparent outline-none text-foreground placeholder:text-muted-foreground w-full text-sm font-medium"
+          />
+          {bandFilter && (
+            <button onClick={() => setBandFilter("")} className="text-muted-foreground hover:text-foreground transition-colors shrink-0">
+              <X className="w-3.5 h-3.5" />
+            </button>
+          )}
+        </div>
+
         {/* Radius (only shown when zip is entered) */}
         {zipInput && (
           <div className="flex items-center gap-3">
@@ -155,17 +183,29 @@ export function Shows() {
         )}
 
         {/* Active search + venue filter row */}
-        {hasActiveSearch && (
+        {(hasActiveSearch || bandFilter) && (
           <div className="flex flex-wrap items-center gap-3 pt-1 border-t border-border/50">
-            <div className="flex items-center gap-2 text-xs text-muted-foreground">
-              <span>Showing results for</span>
-              <span className="text-foreground font-semibold">
-                {activeCity || `${activeZip} (+${activeRadius} mi)`}
-              </span>
-              <button onClick={clearSearch} className="text-muted-foreground hover:text-foreground transition-colors">
-                <X className="w-3.5 h-3.5" />
-              </button>
-            </div>
+            {hasActiveSearch && (
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <span>Location:</span>
+                <span className="text-foreground font-semibold">
+                  {activeCity || `${activeZip} (+${activeRadius} mi)`}
+                </span>
+                <button onClick={clearSearch} className="text-muted-foreground hover:text-foreground transition-colors">
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            )}
+
+            {bandFilter && (
+              <div className="flex items-center gap-1.5 bg-primary/10 border border-primary/20 text-primary rounded-full px-3 py-0.5 text-xs font-bold">
+                <Music className="w-3 h-3" />
+                {bandFilter}
+                <button onClick={() => setBandFilter("")} className="hover:text-white transition-colors ml-0.5">
+                  <X className="w-3 h-3" />
+                </button>
+              </div>
+            )}
 
             {venues.length > 1 && (
               <div className="flex items-center gap-2 ml-auto">
@@ -175,7 +215,7 @@ export function Shows() {
                   onChange={e => setVenueFilter(e.target.value)}
                   className="bg-background border border-border rounded-lg px-3 py-1 text-xs text-foreground outline-none focus:border-secondary cursor-pointer"
                 >
-                  <option value="">All venues ({shows?.length ?? 0})</option>
+                  <option value="">All venues ({filteredShows.length})</option>
                   {venues.map(v => (
                     <option key={v} value={v}>{v}</option>
                   ))}
