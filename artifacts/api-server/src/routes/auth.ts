@@ -1,6 +1,6 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import { db, usersTable } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { eq, or } from "drizzle-orm";
 import { z } from "zod";
 import {
   clearSession,
@@ -19,6 +19,7 @@ const router: IRouter = Router();
 const RegisterBody = z.object({
   email: z.string().email(),
   password: z.string().min(8, "Password must be at least 8 characters"),
+  username: z.string().min(2, "Username must be at least 2 characters").regex(/^[a-zA-Z0-9_]+$/, "Username can only contain letters, numbers, and underscores"),
   firstName: z.string().optional(),
   lastName: z.string().optional(),
 });
@@ -53,18 +54,24 @@ router.post("/register", async (req: Request, res: Response) => {
     return;
   }
 
-  const { email, password, firstName, lastName } = parsed.data;
+  const { email, password, username, firstName, lastName } = parsed.data;
 
-  const existing = await db.select().from(usersTable).where(eq(usersTable.email, email));
+  const existing = await db.select().from(usersTable).where(
+    or(eq(usersTable.email, email), eq(usersTable.username, username))
+  );
   if (existing.length > 0) {
-    res.status(409).json({ error: "An account with that email already exists" });
+    if (existing.some(u => u.email === email)) {
+      res.status(409).json({ error: "An account with that email already exists" });
+    } else {
+      res.status(409).json({ error: "That username is already taken" });
+    }
     return;
   }
 
   const passwordHash = await hashPassword(password);
   const [user] = await db
     .insert(usersTable)
-    .values({ email, passwordHash, firstName: firstName ?? null, lastName: lastName ?? null })
+    .values({ email, passwordHash, username, firstName: firstName ?? null, lastName: lastName ?? null })
     .returning();
 
   const sessionData: SessionData = {

@@ -147,7 +147,11 @@ export function Admin() {
   const handleSaveEdit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingUser) return;
-    updateUser.mutate({ id: editingUser.id, data: editForm });
+    const data: Record<string, unknown> = { isAdmin: editForm.isAdmin };
+    if (editForm.firstName.trim()) data.firstName = editForm.firstName.trim();
+    if (editForm.lastName.trim()) data.lastName = editForm.lastName.trim();
+    if (editForm.username.trim().length >= 2) data.username = editForm.username.trim();
+    updateUser.mutate({ id: editingUser.id, data });
   };
 
   const handleCreate = (e: React.FormEvent) => {
