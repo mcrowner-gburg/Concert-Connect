@@ -63,7 +63,7 @@ function useAdminUsers() {
 type Tab = "venues" | "users";
 
 export function Admin() {
-  const { user: currentUser } = useAuth();
+  const { user: sessionUser } = useAuth();
   const [activeTab, setActiveTab] = useState<Tab>("venues");
 
   // Venues state
@@ -79,6 +79,9 @@ export function Admin() {
 
   // Users state
   const { data: users, isLoading: loadingUsers } = useAdminUsers();
+  // Use the DB-backed list as the source of truth for the current user's role
+  // so stale sessions don't hide admin controls after a role change
+  const isSuperAdmin = users?.find(u => u.id === sessionUser?.id)?.isSuperAdmin ?? false;
   const [editingUser, setEditingUser] = useState<AdminUser | null>(null);
   const [editForm, setEditForm] = useState({ firstName: "", lastName: "", username: "", isAdmin: false });
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
@@ -251,7 +254,7 @@ export function Admin() {
                       </td>
                       <td className="p-4">
                         <div className="flex justify-end">
-                          {currentUser?.isSuperAdmin && !user.isSuperAdmin && (
+                          {isSuperAdmin && !user.isSuperAdmin && (
                             <button
                               onClick={() => openEdit(user)}
                               className="px-3 py-1.5 bg-white/5 hover:bg-white/10 text-muted-foreground hover:text-white rounded-lg flex items-center gap-1.5 transition-colors text-xs font-bold border border-white/10"
