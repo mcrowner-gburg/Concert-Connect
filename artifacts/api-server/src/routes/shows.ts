@@ -97,7 +97,8 @@ router.get("/shows", async (req, res): Promise<void> => {
   const { city, zipCode, radius, startDate, endDate, venueId } = params.data;
 
   let conditions = [];
-  if (startDate) conditions.push(gte(showsTable.showDate, new Date(startDate)));
+  // Default to upcoming shows only; explicit startDate overrides this
+  conditions.push(gte(showsTable.showDate, startDate ? new Date(startDate) : new Date()));
   if (endDate) conditions.push(lte(showsTable.showDate, new Date(endDate)));
   if (venueId) conditions.push(eq(showsTable.venueId, venueId));
 
