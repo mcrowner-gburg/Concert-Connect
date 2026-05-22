@@ -31,6 +31,7 @@ export interface SyncResult {
   showsAdded: number;
   showsSkipped: number;
   venuesCreated: number;
+  venueIds: number[];
 }
 
 function parseTMEvent(e: any): TMEvent {
@@ -123,29 +124,29 @@ export async function fetchTicketmasterEvents(params: {
   return allEvents;
 }
 
-// In-memory cooldown: don't re-sync the same city/zip within 1 hour
-export const recentSyncs = new Map<string, number>();
+// In-memory cooldown: stores last sync time AND the venue IDs that were found,
+// so repeat searches within the cooldown window still filter correctly.
+export const recentSyncs = new Map<string, { time: number; venueIds: number[] }>();
 const SYNC_COOLDOWN_MS = 60 * 60 * 1000;
 
 export async function syncTicketmasterToDb(params: { city?: string; postalCode?: string; radius?: number; maxPages?: number }): Promise<SyncResult> {
   const key = `${params.city?.toLowerCase() ?? ""}:${params.postalCode ?? ""}:${params.radius ?? ""}`;
-  const lastSync = recentSyncs.get(key);
-  if (lastSync && Date.now() - lastSync < SYNC_COOLDOWN_MS) {
-    return { eventsFound: 0, showsAdded: 0, showsSkipped: 0, venuesCreated: 0 };
+  const cached = recentSyncs.get(key);
+  if (cached && Date.now() - cached.time < SYNC_COOLDOWN_MS) {
+    return { eventsFound: 0, showsAdded: 0, showsSkipped: 0, venuesCreated: 0, venueIds: cached.venueIds };
   }
-
-  recentSyncs.set(key, Date.now());
 
   let events: TMEvent[];
   try {
     events = await fetchTicketmasterEvents({ city: params.city, postalCode: params.postalCode, radius: params.radius, maxPages: params.maxPages ?? 2 });
   } catch {
-    return { eventsFound: 0, showsAdded: 0, showsSkipped: 0, venuesCreated: 0 };
+    return { eventsFound: 0, showsAdded: 0, showsSkipped: 0, venuesCreated: 0, venueIds: [] };
   }
 
   let showsAdded = 0;
   let showsSkipped = 0;
   let venuesCreated = 0;
+  const venueIdSet = new Set<number>();
 
   for (const event of events) {
     if (!event.localDate || !event.venue.city) continue;
@@ -177,6 +178,7 @@ export async function syncTicketmasterToDb(params: { city?: string; postalCode?:
       venueId = newVenue.id;
       venuesCreated++;
     }
+    venueIdSet.add(venueId);
 
     const showDate = event.dateTime ?? new Date(`${event.localDate}T${event.localTime ?? "20:00:00"}`);
     const sourceUrl = `https://www.ticketmaster.com/event/${event.id}`;
@@ -206,5 +208,7 @@ export async function syncTicketmasterToDb(params: { city?: string; postalCode?:
     }
   }
 
-  return { eventsFound: events.length, showsAdded, showsSkipped, venuesCreated };
+  const venueIds = Array.from(venueIdSet);
+  recentSyncs.set(key, { time: Date.now(), venueIds });
+  return { eventsFound: events.length, showsAdded, showsSkipped, venuesCreated, venueIds };
 }

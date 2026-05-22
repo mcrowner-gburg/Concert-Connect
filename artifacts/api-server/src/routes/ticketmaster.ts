@@ -23,7 +23,8 @@ router.post("/ticketmaster/sync", async (req, res): Promise<void> => {
   }
 
   // Admin manual syncs bypass cooldown and fetch more pages for thorough coverage
-  recentSyncs.delete(`${parsed.data.city?.toLowerCase() ?? ""}:${parsed.data.postalCode ?? ""}:${parsed.data.radius ?? ""}`);
+  const cacheKey = `${parsed.data.city?.toLowerCase() ?? ""}:${parsed.data.postalCode ?? ""}:${parsed.data.radius ?? ""}`;
+  recentSyncs.delete(cacheKey);
   const result = await syncTicketmasterToDb({ ...parsed.data, maxPages: 5 });
   res.json(result);
 });

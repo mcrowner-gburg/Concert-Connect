@@ -101,19 +101,25 @@ router.get("/shows", async (req, res): Promise<void> => {
   if (endDate) conditions.push(lte(showsTable.showDate, new Date(endDate)));
   if (venueId) conditions.push(eq(showsTable.venueId, venueId));
 
-  let venueFilter: string[] | null = null;
-
   if (city || zipCode) {
-    // Auto-sync from Ticketmaster so any user can search any city/zip
-    await syncTicketmasterToDb({ city, postalCode: zipCode, radius });
+    // Sync from Ticketmaster — returns the venue IDs it found (cached on repeat searches)
+    const syncResult = await syncTicketmasterToDb({ city, postalCode: zipCode, radius });
+    const venueIdSet = new Set<number>(syncResult.venueIds);
 
-    const venueConditions = [];
-    if (city) venueConditions.push(sql`lower(${venuesTable.city}) = lower(${city})`);
-    if (zipCode) venueConditions.push(eq(venuesTable.zipCode, zipCode));
-    const matchingVenues = await db.select({ id: venuesTable.id }).from(venuesTable).where(and(...venueConditions));
-    venueFilter = matchingVenues.map(v => String(v.id));
-    if (venueFilter.length > 0) {
-      conditions.push(inArray(showsTable.venueId, matchingVenues.map(v => v.id)));
+    if (city) {
+      // Also include manually-added venues with this city name so they aren't excluded
+      const cityVenues = await db
+        .select({ id: venuesTable.id })
+        .from(venuesTable)
+        .where(sql`lower(${venuesTable.city}) = lower(${city})`);
+      for (const v of cityVenues) venueIdSet.add(v.id);
+    }
+
+    if (venueIdSet.size > 0) {
+      conditions.push(inArray(showsTable.venueId, Array.from(venueIdSet)));
+    } else {
+      // No venues found for this location — return nothing instead of everything
+      conditions.push(sql`1 = 0`);
     }
   } else if (req.isAuthenticated() && !venueId) {
     const [prefs] = await db.select().from(userPreferencesTable).where(eq(userPreferencesTable.userId, req.user.id));
