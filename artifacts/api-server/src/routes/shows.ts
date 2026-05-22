@@ -107,8 +107,23 @@ router.get("/shows", async (req, res): Promise<void> => {
     const syncResult = await syncTicketmasterToDb({ city, postalCode: zipCode, radius });
     const venueIdSet = new Set<number>(syncResult.venueIds);
 
+    // Expand: look up ALL DB venues in the same cities TM found, so manually-added
+    // venues in those cities aren't excluded just because they aren't on TM.
+    if (syncResult.venueIds.length > 0) {
+      const tmVenueRows = await db.select({ city: venuesTable.city })
+        .from(venuesTable)
+        .where(inArray(venuesTable.id, syncResult.venueIds));
+      const tmCities = [...new Set(tmVenueRows.map(v => v.city).filter(Boolean))];
+      if (tmCities.length > 0) {
+        const allCityVenues = await db.select({ id: venuesTable.id })
+          .from(venuesTable)
+          .where(inArray(sql`lower(${venuesTable.city})`, tmCities.map(c => c.toLowerCase())));
+        for (const v of allCityVenues) venueIdSet.add(v.id);
+      }
+    }
+
     if (city) {
-      // Also include manually-added venues with this city name so they aren't excluded
+      // For explicit city searches always include DB venues with that city name
       const cityVenues = await db
         .select({ id: venuesTable.id })
         .from(venuesTable)
@@ -116,10 +131,19 @@ router.get("/shows", async (req, res): Promise<void> => {
       for (const v of cityVenues) venueIdSet.add(v.id);
     }
 
+    if (zipCode && venueIdSet.size === 0) {
+      // TM returned nothing for this zip — fall back to DB venues in the same
+      // zip prefix area (first 2 digits ≈ state/region, e.g. "17" = central PA).
+      const prefix = zipCode.slice(0, 2);
+      const zipFallbackVenues = await db.select({ id: venuesTable.id })
+        .from(venuesTable)
+        .where(sql`${venuesTable.zipCode} LIKE ${prefix + '%'}`);
+      for (const v of zipFallbackVenues) venueIdSet.add(v.id);
+    }
+
     if (venueIdSet.size > 0) {
       conditions.push(inArray(showsTable.venueId, Array.from(venueIdSet)));
     } else {
-      // No venues found for this location — return nothing instead of everything
       conditions.push(sql`1 = 0`);
     }
   } else if (req.isAuthenticated() && !venueId) {
